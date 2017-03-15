@@ -297,6 +297,37 @@ function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
       }
     }
   }
+  if (isset($solrquery)) {
+    $current = 0;
+    $numfound = 1;
+    while ($current < $numfound) {
+      $qp = new IslandoraSolrQueryProcessor();
+      $qp->buildQuery($solrquery);
+      $qp->solrLimit = 50;
+      $qp->solrStart = $current;
+      $qp->executeQuery();
+      $r = $qp->islandoraSolrResult;
+      $numfound = $r['response']['numFound'];
+      if ($current === 0) {
+        drush_log(t("Found @numfound objects for query @query", array("@numfound" => $numfound, "@query" => $solrquery)), 'ok');
+      }
+
+      $len = count($r['response']['objects']);
+      for ($i = 0; $i < $len; $i++) {
+        $objid = $r['response']['objects'][$i]['PID']; 
+        $obj = islandora_object_load($objid);
+        if ($obj) {
+          if (isset($cmodelarray)) {
+           if (!array_intersect($cmodelarray, $obj->models)) {
+             continue;
+           }
+          }
+          ubl_islandora_export_object_export($obj, $formatconfig, $directory);
+        }
+      }
+      $current += $len;
+    }
+  }
 }
 
 function ubl_islandora_export_object_export($obj, array $formatconfig, $outputdirectory) {
