@@ -323,9 +323,61 @@ function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
            }
           }
           ubl_islandora_export_object_export($obj, $formatconfig, $directory);
+          $doneids[$objid] = 1;
+          ubl_islandora_export_process_children($obj, $cmodels, $doneids);
         }
       }
       $current += $len;
+    }
+  }
+}
+
+function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
+  if (!$obj) {
+    return;
+  }
+  if (isset($doneids[$obj->id])) {
+    return; // Already done this object.
+  }
+  $doneids[$obj->id] = 1;
+  if (in_array('islandora:collectionCModel', $obj->models)) {
+    module_load_include('inc', 'islandora', 'includes/utilities');
+    list($count, $colobjs) = islandora_basic_collection_get_member_objects($collectionobj, -1, -1);
+    foreach ($colobjs as $colobj) {
+      $cid = $colobj['object']['value'];
+      $cobj = islandora_object_load($cid);
+      if ($cobj) {
+        if (isset($cmodelarray)) {
+          if (!array_intersect($cmodelarray, $cobj->models)) {
+            continue;
+          }
+        }
+        ubl_islandora_export_object_export($cobj, $formatconfig, $directory);
+        ubl_islandora_export_process_children($cobj, $cmodels, $doneids);
+      }
+    }
+  }
+  if (in_array('islandora:bookCModel', $obj->models) && (!isset($cmodelarray) || in_array('islandora:pageCModel', $cmodelarray))) {
+    module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
+    $pages = islandora_paged_content_get_pages($obj);
+    foreach ($pages as $pagepid => $pageinfo) {
+      $pageobj = islandora_object_load($pagepid);
+      ubl_islandora_export_object_export($pageobj, $formatconfig, $directory);
+    }
+  }
+  if (in_array('islandora:compoundCModel', $obj->models)) {
+    $compoundparts = islandora_compound_object_get_parts($obj->id);
+    foreach ($compoundparts as $partpid) {
+      $pobj = islandora_object_load($partpid);
+      if ($pobj) {
+        if (isset($cmodelarray)) {
+          if (!array_intersect($cmodelarray, $pobj->models)) {
+            continue;
+          }
+        }
+        ubl_islandora_export_object_export($pobj, $formatconfig, $directory);
+        ubl_islandora_export_process_children($pobj, $cmodels, $doneids);
+      }
     }
   }
 }
