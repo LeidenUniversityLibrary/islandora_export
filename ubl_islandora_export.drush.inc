@@ -176,7 +176,7 @@ function drush_ubl_islandora_export_islandora_export() {
     foreach ($colarray as $collection) {
       $collectionobj = islandora_object_load($collection);
       if ($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models)) {
-        ubl_islandora_export_process_children($obj, $cmodels, $doneids);
+        ubl_islandora_export_process_children($collectionobj, $cmodels, $doneids);
       }
     }
   }
