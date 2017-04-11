@@ -176,7 +176,7 @@ function drush_ubl_islandora_export_islandora_export() {
     foreach ($colarray as $collection) {
       $collectionobj = islandora_object_load($collection);
       if ($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models)) {
-        ubl_islandora_export_process_children($obj, $cmodels, $doneids);
+        ubl_islandora_export_process_children($collectionobj, $cmodels, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -210,7 +210,7 @@ function drush_ubl_islandora_export_islandora_export() {
         } 
         ubl_islandora_export_object_export($obj, $formatconfig, $directory);
         $doneids[$itemid] = 1;
-        ubl_islandora_export_process_children($obj, $cmodels, $doneids);
+        ubl_islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -241,7 +241,7 @@ function drush_ubl_islandora_export_islandora_export() {
           }
           ubl_islandora_export_object_export($obj, $formatconfig, $directory);
           $doneids[$objid] = 1;
-          ubl_islandora_export_process_children($obj, $cmodels, $doneids);
+          ubl_islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, $doneids);
         }
       }
       $current += $len;
@@ -249,7 +249,7 @@ function drush_ubl_islandora_export_islandora_export() {
   }
 }
 
-function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
+function ubl_islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, &$doneids) {
   if (!$obj) {
     return;
   }
@@ -259,7 +259,7 @@ function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
   $doneids[$obj->id] = 1;
   if (in_array('islandora:collectionCModel', $obj->models)) {
     module_load_include('inc', 'islandora', 'includes/utilities');
-    list($count, $colobjs) = islandora_basic_collection_get_member_objects($collectionobj, -1, -1);
+    list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, -1, -1);
     foreach ($colobjs as $colobj) {
       $cid = $colobj['object']['value'];
       $cobj = islandora_object_load($cid);
@@ -270,7 +270,7 @@ function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
           }
         }
         ubl_islandora_export_object_export($cobj, $formatconfig, $directory);
-        ubl_islandora_export_process_children($cobj, $cmodels, $doneids);
+        ubl_islandora_export_process_children($cobj, $cmodels, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -293,7 +293,7 @@ function ubl_islandora_export_process_children($obj, $cmodels, &$doneids) {
           }
         }
         ubl_islandora_export_object_export($pobj, $formatconfig, $directory);
-        ubl_islandora_export_process_children($pobj, $cmodels, $doneids);
+        ubl_islandora_export_process_children($pobj, $cmodels, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -809,4 +809,3 @@ function islandora_ids_from_file($idsfile) {
   }
   return $foundids;
 }
-
