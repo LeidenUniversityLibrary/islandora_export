@@ -2,7 +2,7 @@
 
 /**
  * @file
- * ubl_islandora_export
+ * islandora_export.module
  */
 
 // Empty file, only drush command.
