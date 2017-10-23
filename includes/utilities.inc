@@ -23,7 +23,7 @@
  *
  */
 
-function islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, &$doneids) {
+function islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, &$doneids) {
   if (!$obj) {
     return;
   }
@@ -44,7 +44,7 @@ function islandora_export_process_children($obj, $cmodels, $formatconfig, $direc
           }
         }
         islandora_export_object_export($cobj, $formatconfig, $directory);
-        islandora_export_process_children($cobj, $cmodels, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($cobj, $cmodelarray, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -67,7 +67,7 @@ function islandora_export_process_children($obj, $cmodels, $formatconfig, $direc
           }
         }
         islandora_export_object_export($pobj, $formatconfig, $directory);
-        islandora_export_process_children($pobj, $cmodels, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($pobj, $cmodelarray, $formatconfig, $directory, $doneids);
       }
     }
   }

@@ -197,7 +197,7 @@ function drush_islandora_export_islandora_export() {
     foreach ($colarray as $collection) {
       $collectionobj = islandora_object_load($collection);
       if ($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models)) {
-        islandora_export_process_children($collectionobj, $cmodels, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($collectionobj, $cmodelarray, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -231,7 +231,7 @@ function drush_islandora_export_islandora_export() {
         } 
         islandora_export_object_export($obj, $formatconfig, $directory);
         $doneids[$itemid] = 1;
-        islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -262,7 +262,7 @@ function drush_islandora_export_islandora_export() {
           }
           islandora_export_object_export($obj, $formatconfig, $directory);
           $doneids[$objid] = 1;
-          islandora_export_process_children($obj, $cmodels, $formatconfig, $directory, $doneids);
+          islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, $doneids);
         }
       }
       $current += $len;
