@@ -256,6 +256,14 @@ function islandora_export_object_property($obj, $property) {
     case 'state':
       $value = $obj->state;
       break;
+    case 'cmodels':
+      $value = implode(',', array_diff($obj->models, array('fedora-system:FedoraObject-3.0')));
+      break;
+    case 'parents':
+      if (module_load_include('inc', 'islandora_basic_collection', 'includes/utilities')) {
+        $value = implode(',', islandora_basic_collection_get_parent_pids($obj));
+      }
+      break;
   }
   return $value;
 }
@@ -363,7 +371,7 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
       if (!isset($property)) {
 	return drush_set_error("format_file '$formatfile' section [$column]: source[property] should exist");
       }
-      $possibleproperties = array('checksum', 'checksumtype', 'creationdate', 'creationdatetime', 'modifydate', 'modifydatetime', 'id', 'label', 'owner', 'mimetype', 'size', 'state', 'url', 'extension');
+      $possibleproperties = array('checksum', 'checksumtype', 'creationdate', 'creationdatetime', 'modifydate', 'modifydatetime', 'id', 'label', 'owner', 'mimetype', 'size', 'state', 'url', 'extension', 'cmodels', 'parents');
       if (!in_array($property, $possibleproperties)) {
 	return drush_set_error(t("format_file '$formatfile' section [$column]: source[property] should be one of these: @props",
         array('@props' => implode(',', $possibleproperties))));
