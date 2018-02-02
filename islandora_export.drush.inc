@@ -52,7 +52,7 @@ function islandora_export_drush_command() {
 /**
  * Implements drush_hook_COMMAND_validate().
  */
-function drush_islandora_export_islandora_export_validate() {
+function drush_islandora_export_validate() {
   module_load_include('inc', 'islandora_export', 'includes/utilities');
 
   $collections = drush_get_option('collection');
@@ -175,7 +175,7 @@ function drush_islandora_export_islandora_export_validate() {
 /**
  * Implements drush_hook_COMMAND().
  */
-function drush_islandora_export_islandora_export() {
+function drush_islandora_export() {
   module_load_include('inc', 'islandora_export', 'includes/utilities');
 
   $collections = drush_get_option('collection');
