@@ -405,7 +405,7 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
 	      }
 	      list($prefix, $uri) = $parts;
 	      if (!(filter_var($uri, FILTER_VALIDATE_URL) || (strpos($uri, 'urn:') === 0))) {
-		return drush_set_error("format_file '$formatfile' section [$column]: extract[namespaces]: not a URI in '$namespace'");
+		drush_set_message("format_file '$formatfile' section [$column]: extract[namespaces]: not a URI in '$namespace'", 'warning');
 	      }
 	      if (@$domxpath->registerNamespace($prefix, $uri) === FALSE) {
 		return drush_set_error("format_file '$formatfile' section [$column]: extract[namespaces]: '$prefix=$uri' is not valid");
