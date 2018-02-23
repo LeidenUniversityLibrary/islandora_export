@@ -185,6 +185,9 @@ function drush_islandora_export() {
   if (isset($cmodels)) {
     $cmodelarray = explode(',', $cmodels);
   }
+  else {
+    $cmodelarray = NULL;
+  }
 
   $doneids = array();
   $formatconfig = parse_ini_file($formatfile, TRUE);
