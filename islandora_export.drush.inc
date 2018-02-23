@@ -163,10 +163,6 @@ function drush_islandora_export_validate() {
     if (isset($idsfile) || isset($batchsets) || isset($collections)) {
       return drush_set_error("solr_query cannot be combined with collection, batchset or ids_file.");
     } 
-    $parts = explode(':', $solrquery);
-    if (count($parts) != 2) {
-      return drush_set_error("solr_query should have the following format: solr_field:search_term.");
-    }
   }
 
   return TRUE;
