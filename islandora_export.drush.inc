@@ -36,6 +36,7 @@ function islandora_export_drush_command() {
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
+      'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file on the given content models(s), separated by comma\'s.',
     ),
     'aliases' => array('export'),
@@ -59,6 +60,7 @@ function drush_islandora_export_validate() {
   $batchsets = drush_get_option('batchset');
   $idsfile = drush_get_option('ids_file');
   $solrquery = drush_get_option('solr_query');
+  $daterange = drush_get_option('date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
@@ -160,9 +162,26 @@ function drush_islandora_export_validate() {
 
   // Check solr_query option.
   if (isset($solrquery)) {
-    if (isset($idsfile) || isset($batchsets) || isset($collections)) {
+    if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($daterange)) {
       return drush_set_error("solr_query cannot be combined with collection, batchset or ids_file.");
     } 
+  }
+
+  // Check date_range option.
+  if (isset($daterange)) {
+    $dates = explode('..', $daterange, 2);
+    $isvalidformat = TRUE; // be positive.
+    if (count($dates) !== 2) {
+      $isvalidformat = FALSE;
+    }
+    foreach ($dates as $date) {
+      if ($date !== '' && !preg_match('/^[12][0-9]{3}-[01][0-9]-[0-3][0-9](?:T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z)?$/', $date)) {
+        $isvalidformat = FALSE;
+      }
+    }
+    if (!$isvalidformat) {
+      return drush_set_error("date_range should contain 2 dates, separated by two points, e.g. 2017-01-01..2018-01-01.");
+    }
   }
 
   return TRUE;
@@ -178,6 +197,7 @@ function drush_islandora_export() {
   $batchsets = drush_get_option('batchset');
   $idsfile = drush_get_option('ids_file');
   $solrquery = drush_get_option('solr_query');
+  $daterange = drush_get_option('date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
@@ -265,6 +285,67 @@ function drush_islandora_export() {
         }
       }
       $current += $len;
+    }
+  }
+
+  if (isset($daterange)) {
+    $query = <<<EOQ
+SELECT ?object ?cd ?title
+FROM <#ri>
+WHERE {
+  ?object <fedora-model:label> ?title ;
+  <info:fedora/fedora-system:def/model#createdDate> ?cd ;
+  <fedora-model:hasModel> ?model ;
+  <fedora-model:state> <fedora-model:Active> .
+  !filters
+}
+ORDER BY ?cd
+!limit
+EOQ;
+    $tuque = islandora_get_tuque_connection();
+    if ($tuque) {
+      $dates = explode('..', $daterange, 2);
+      $startcreationdate = $dates[0];
+      $endcreationdate = $dates[1];
+      $limit = 2500;
+      while (TRUE) {
+        if (strlen($startcreationdate) > 0 && strlen($endcreationdate) > 0) {
+          $filters['cd'] = "FILTER(?cd > '{$startcreationdate}'^^xsd:dateTime && ?cd < '{$endcreationdate}'^^xsd:dateTime)";
+        }
+        elseif (strlen($startcreationdate) > 0) {
+          $filters['cd'] = "FILTER(?cd > '{$startcreationdate}'^^xsd:dateTime)";
+        }
+        elseif (strlen($endcreationdate) > 0) {
+          $filters['cd'] = "FILTER(?cd < '{$endcreationdate}'^^xsd:dateTime)";
+        }
+        $query_string = format_string($query, array(
+          '!filters' => implode(' ', $filters),
+          '!limit' => "LIMIT $limit"));
+        $results = $tuque->repository->ri->sparqlQuery($query_string);
+        if (empty($results)) {
+          break;
+        }
+        else {
+          foreach ($results as $result) {
+            $pid = $result['object']['value'];
+            $startcreationdate = $result['cd']['value'];
+            if (isset($doneids[$pid])) {
+              continue;
+            }
+            $obj = islandora_object_load($pid);
+            if ($obj) {
+              if (isset($cmodelarray)) {
+               if (!array_intersect($cmodelarray, $obj->models)) {
+                 continue;
+               }
+              }
+              islandora_export_object_export($obj, $formatconfig, $directory);
+              $doneids[$pid] = 1;
+            }
+          }
+          drush_log(t("Exported uptil date @date.", array('@date' => $startcreationdate)), 'info');
+        }
+      }
     }
   }
 }
