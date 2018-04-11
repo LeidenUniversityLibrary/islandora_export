@@ -33,18 +33,26 @@ function islandora_export_process_children($obj, $cmodelarray, $formatconfig, $d
   $doneids[$obj->id] = 1;
   if (in_array('islandora:collectionCModel', $obj->models)) {
     module_load_include('inc', 'islandora', 'includes/utilities');
-    list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, -1, -1);
-    foreach ($colobjs as $colobj) {
-      $cid = $colobj['object']['value'];
-      $cobj = islandora_object_load($cid);
-      if ($cobj) {
-        if (isset($cmodelarray)) {
-          if (!array_intersect($cmodelarray, $cobj->models)) {
-            continue;
+    $pagenumber = 0;
+    $pagesize = 100;
+    while (TRUE) {
+      list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, $pagenumber, $pagesize);
+      $pagenumber++;
+      if (count($colobjs) === 0) {
+        break;
+      }
+      foreach ($colobjs as $colobj) {
+        $cid = $colobj['object']['value'];
+        $cobj = islandora_object_load($cid);
+        if ($cobj) {
+          if (isset($cmodelarray)) {
+            if (!array_intersect($cmodelarray, $cobj->models)) {
+              continue;
+            }
           }
+          islandora_export_object_export($cobj, $formatconfig, $directory);
+          islandora_export_process_children($cobj, $cmodelarray, $formatconfig, $directory, $doneids);
         }
-        islandora_export_object_export($cobj, $formatconfig, $directory);
-        islandora_export_process_children($cobj, $cmodelarray, $formatconfig, $directory, $doneids);
       }
     }
   }
