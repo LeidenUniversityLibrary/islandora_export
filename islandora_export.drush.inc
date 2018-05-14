@@ -37,7 +37,7 @@ function islandora_export_drush_command() {
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
-      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file on the given content models(s), separated by comma\'s.',
+      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
     ),
     'aliases' => array('export'),
     'examples' => array(
@@ -45,6 +45,7 @@ function islandora_export_drush_command() {
       'drush --user=admin export --batchset=66 --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --ids_file=/path/to/idsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islandora:bookCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
+      'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
     ),
   );
   return $items;
@@ -202,11 +203,21 @@ function drush_islandora_export() {
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
 
+  $filter = array();
   if (isset($cmodels)) {
     $cmodelarray = explode(',', $cmodels);
-  }
-  else {
-    $cmodelarray = NULL;
+    foreach ($cmodelarray as $cmodel) {
+      $prefix = substr($cmodel, 0, 1);
+      if ($prefix === "-") {
+        $filter['excluded_cmodels'][] = substr($cmodel, 1);
+      }
+      elseif ($prefix === "+") {
+        $filter['included_cmodels'][] = substr($cmodel, 1);
+      }
+      else {
+        $filter['included_cmodels'][] = $cmodel;
+      }
+    }
   }
 
   $doneids = array();
@@ -216,7 +227,7 @@ function drush_islandora_export() {
     foreach ($colarray as $collection) {
       $collectionobj = islandora_object_load($collection);
       if ($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models)) {
-        islandora_export_process_children($collectionobj, $cmodelarray, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($collectionobj, $filter, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -227,12 +238,9 @@ function drush_islandora_export() {
       foreach ($itemids as $itemid) {
 	$obj = islandora_object_load($itemid);
 	if ($obj) {
-	  if (isset($cmodelarray)) { 
-	    if (!array_intersect($cmodelarray, $obj->models)) { 
-	      continue;
-	    } 
-	  } 
-	  islandora_export_object_export($obj, $formatconfig, $directory);
+          if (islandora_export_filter_should_export($obj, $filter)) {
+	    islandora_export_object_export($obj, $formatconfig, $directory);
+          }
           $doneids[$itemid] = 1;
         }
       }
@@ -243,14 +251,11 @@ function drush_islandora_export() {
     foreach ($ids as $itemid) {
       $obj = islandora_object_load($itemid);
       if ($obj) {
-        if (isset($cmodelarray)) { 
-         if (!array_intersect($cmodelarray, $obj->models)) { 
-           continue;
-         } 
-        } 
-        islandora_export_object_export($obj, $formatconfig, $directory);
+        if (islandora_export_filter_should_export($obj, $filter)) {
+          islandora_export_object_export($obj, $formatconfig, $directory);
+        }
         $doneids[$itemid] = 1;
-        islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids);
       }
     }
   }
@@ -274,14 +279,11 @@ function drush_islandora_export() {
         $objid = $r['response']['objects'][$i]['PID']; 
         $obj = islandora_object_load($objid);
         if ($obj) {
-          if (isset($cmodelarray)) {
-           if (!array_intersect($cmodelarray, $obj->models)) {
-             continue;
-           }
+          if (islandora_export_filter_should_export($obj, $filter)) {
+            islandora_export_object_export($obj, $formatconfig, $directory);
           }
-          islandora_export_object_export($obj, $formatconfig, $directory);
           $doneids[$objid] = 1;
-          islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, $doneids);
+          islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids);
         }
       }
       $current += $len;
@@ -334,12 +336,9 @@ EOQ;
             }
             $obj = islandora_object_load($pid);
             if ($obj) {
-              if (isset($cmodelarray)) {
-               if (!array_intersect($cmodelarray, $obj->models)) {
-                 continue;
-               }
+              if (islandora_export_filter_should_export($obj, $filter)) {
+                islandora_export_object_export($obj, $formatconfig, $directory);
               }
-              islandora_export_object_export($obj, $formatconfig, $directory);
               $doneids[$pid] = 1;
             }
           }

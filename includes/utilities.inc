@@ -23,7 +23,7 @@
  *
  */
 
-function islandora_export_process_children($obj, $cmodelarray, $formatconfig, $directory, &$doneids) {
+function islandora_export_process_children($obj, $filter, $formatconfig, $directory, &$doneids) {
   if (!$obj) {
     return;
   }
@@ -45,23 +45,24 @@ function islandora_export_process_children($obj, $cmodelarray, $formatconfig, $d
         $cid = $colobj['object']['value'];
         $cobj = islandora_object_load($cid);
         if ($cobj) {
-          if (isset($cmodelarray)) {
-            if (!array_intersect($cmodelarray, $cobj->models)) {
-              continue;
-            }
+          if (islandora_export_filter_should_export($cobj, $filter)) {
+            islandora_export_object_export($cobj, $formatconfig, $directory);
           }
-          islandora_export_object_export($cobj, $formatconfig, $directory);
-          islandora_export_process_children($cobj, $cmodelarray, $formatconfig, $directory, $doneids);
+          islandora_export_process_children($cobj, $filter, $formatconfig, $directory, $doneids);
         }
       }
     }
   }
-  if (in_array('islandora:bookCModel', $obj->models) && (!isset($cmodelarray) || in_array('islandora:pageCModel', $cmodelarray))) {
+  if (in_array('islandora:bookCModel', $obj->models)) {
     module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
     $pages = islandora_paged_content_get_pages($obj);
     foreach ($pages as $pagepid => $pageinfo) {
       $pageobj = islandora_object_load($pagepid);
-      islandora_export_object_export($pageobj, $formatconfig, $directory);
+      if ($pageobj) {
+        if (islandora_export_filter_should_export($pageobj, $filter)) {
+          islandora_export_object_export($pageobj, $formatconfig, $directory);
+        }
+      }
     }
   }
   if (in_array('islandora:compoundCModel', $obj->models)) {
@@ -69,16 +70,27 @@ function islandora_export_process_children($obj, $cmodelarray, $formatconfig, $d
     foreach ($compoundparts as $partpid) {
       $pobj = islandora_object_load($partpid);
       if ($pobj) {
-        if (isset($cmodelarray)) {
-          if (!array_intersect($cmodelarray, $pobj->models)) {
-            continue;
-          }
+        if (islandora_export_filter_should_export($pobj, $filter)) {
+          islandora_export_object_export($pobj, $formatconfig, $directory);
         }
-        islandora_export_object_export($pobj, $formatconfig, $directory);
-        islandora_export_process_children($pobj, $cmodelarray, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($pobj, $filter, $formatconfig, $directory, $doneids);
       }
     }
   }
+}
+
+function islandora_export_filter_should_export($object, $filter) {
+  if (isset($filter['excluded_cmodels'])) {
+    if (array_intersect($filter['excluded_cmodels'], $object->models)) {
+      return FALSE;
+    }
+  }
+  if (isset($filter['included_cmodels'])) {
+    if (!array_intersect($filter['included_cmodels'], $object->models)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
 }
 
 function islandora_export_object_export($obj, array $formatconfig, $outputdirectory) {
