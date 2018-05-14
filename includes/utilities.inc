@@ -92,7 +92,7 @@ function islandora_export_object_export($obj, array $formatconfig, $outputdirect
       $csvfilehandle = fopen($csvfile, 'w');
     }
     if ($csvfilehandle === FALSE) {
-      return drush_set_error("File $csvfile cannot be opend for writing"); 
+      return drush_set_error("File $csvfile cannot be opened for writing"); 
     } 
     if (!$fileexistsalready) {
       $separator = $formatconfig['exportformat']['separator'];
@@ -102,6 +102,7 @@ function islandora_export_object_export($obj, array $formatconfig, $outputdirect
       } 
     }
     $ok = islandora_export_object_export_csv($obj, $formatconfig, $outputdirectory, $csvfilehandle);
+    fclose($csvfilehandle);
     if ($ok === FALSE) {
       return FALSE;
     }
