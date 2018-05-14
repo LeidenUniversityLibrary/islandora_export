@@ -27,10 +27,6 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
   if (!$obj) {
     return;
   }
-  if (isset($doneids[$obj->id])) {
-    return; // Already done this object.
-  }
-  $doneids[$obj->id] = 1;
   if (in_array('islandora:collectionCModel', $obj->models)) {
     module_load_include('inc', 'islandora', 'includes/utilities');
     $pagenumber = 0;
@@ -43,11 +39,15 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       }
       foreach ($colobjs as $colobj) {
         $cid = $colobj['object']['value'];
+        if (isset($doneids[$cid])) {
+          continue;
+        }
         $cobj = islandora_object_load($cid);
         if ($cobj) {
           if (islandora_export_filter_should_export($cobj, $filter)) {
             islandora_export_object_export($cobj, $formatconfig, $directory);
           }
+          $doneids[$cid] = 1;
           islandora_export_process_children($cobj, $filter, $formatconfig, $directory, $doneids);
         }
       }
@@ -57,6 +57,9 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
     $pages = islandora_paged_content_get_pages($obj);
     foreach ($pages as $pagepid => $pageinfo) {
+      if (isset($doneids[$pagepid])) {
+        continue;
+      }
       $pageobj = islandora_object_load($pagepid);
       if ($pageobj) {
         if (islandora_export_filter_should_export($pageobj, $filter)) {
@@ -69,11 +72,15 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
   if (in_array('islandora:compoundCModel', $obj->models)) {
     $compoundparts = islandora_compound_object_get_parts($obj->id);
     foreach ($compoundparts as $partpid) {
+      if (isset($doneids[$partpid])) {
+        continue;
+      }
       $pobj = islandora_object_load($partpid);
       if ($pobj) {
         if (islandora_export_filter_should_export($pobj, $filter)) {
           islandora_export_object_export($pobj, $formatconfig, $directory);
         }
+        $doneids[$partpid] = 1;
         islandora_export_process_children($pobj, $filter, $formatconfig, $directory, $doneids);
       }
     }

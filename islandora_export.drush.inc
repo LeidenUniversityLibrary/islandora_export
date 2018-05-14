@@ -236,6 +236,9 @@ function drush_islandora_export() {
     foreach ($batchsetarray as $batchset) {
       $itemids = islandora_batch_get_queued_items_for_set($batchset);
       foreach ($itemids as $itemid) {
+        if (isset($doneids[$itemid])) {
+          continue;
+        }
 	$obj = islandora_object_load($itemid);
 	if ($obj) {
           if (islandora_export_filter_should_export($obj, $filter)) {
@@ -249,6 +252,9 @@ function drush_islandora_export() {
   if (isset($idsfile)) {
     $ids = islandora_export_ids_from_file($idsfile);
     foreach ($ids as $itemid) {
+      if (isset($doneids[$itemid])) {
+        continue;
+      }
       $obj = islandora_object_load($itemid);
       if ($obj) {
         if (islandora_export_filter_should_export($obj, $filter)) {
@@ -277,6 +283,9 @@ function drush_islandora_export() {
       $len = count($r['response']['objects']);
       for ($i = 0; $i < $len; $i++) {
         $objid = $r['response']['objects'][$i]['PID']; 
+        if (isset($doneids[$objid])) {
+          continue;
+        }
         $obj = islandora_object_load($objid);
         if ($obj) {
           if (islandora_export_filter_should_export($obj, $filter)) {
