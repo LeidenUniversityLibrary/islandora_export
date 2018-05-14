@@ -62,6 +62,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
         if (islandora_export_filter_should_export($pageobj, $filter)) {
           islandora_export_object_export($pageobj, $formatconfig, $directory);
         }
+        $doneids[$pagepid] = 1;
       }
     }
   }
