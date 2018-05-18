@@ -34,10 +34,11 @@ function islandora_export_drush_command() {
       'directory' => 'Mandatory, the absolute filepath to an empty directory to export to.',
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
-      'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers.',
+      'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be exported.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
+      'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
     ),
     'aliases' => array('export'),
     'examples' => array(
@@ -46,6 +47,7 @@ function islandora_export_drush_command() {
       'drush --user=admin export --ids_file=/path/to/idsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islandora:bookCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
+      'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
     ),
   );
   return $items;
@@ -65,6 +67,7 @@ function drush_islandora_export_validate() {
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
+  $skipidsfile = drush_get_option('skip_ids_file');
 
   // check directory option
   if (!isset($directory)) {
@@ -185,6 +188,13 @@ function drush_islandora_export_validate() {
     }
   }
 
+  // Check skip_ids_file option.
+  if (isset($skipidsfile)) {
+    if (!file_exists($skipidsfile)) {
+      return drush_set_error("skip_ids_file '$skipidsfile' does not exist");
+    }
+  }
+
   return TRUE;
 }
 
@@ -202,6 +212,7 @@ function drush_islandora_export() {
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
+  $skipidsfile = drush_get_option('skip_ids_file');
 
   $filter = array();
   if (isset($cmodels)) {
@@ -221,6 +232,13 @@ function drush_islandora_export() {
   }
 
   $doneids = array();
+  if (isset($skipidsfile)) {
+    $skipids = islandora_export_ids_from_file($skipidsfile);
+    foreach ($skipids as $skipitemid) {
+      $doneids[$skipitemid] = 1;
+    }
+  }
+
   $formatconfig = parse_ini_file($formatfile, TRUE);
   if (isset($collections)) {
     $colarray = explode(',', $collections);
