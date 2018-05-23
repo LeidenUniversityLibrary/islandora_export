@@ -134,6 +134,9 @@ function drush_islandora_export_validate() {
   if (isset($collections)) {
     $colarray = explode(',', $collections);
     foreach ($colarray as $collection) {
+      if (preg_match("/^([^>]+)>pagenumber=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
+        $collection = $matches[1];
+      }
       $collectionobj = islandora_object_load($collection);
       if (!($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models))) {
 	return drush_set_error("Identifier '$collection' does not resolve to a collection");
@@ -243,9 +246,17 @@ function drush_islandora_export() {
   if (isset($collections)) {
     $colarray = explode(',', $collections);
     foreach ($colarray as $collection) {
+      $settings = array();
+      if (preg_match("/^([^>]+)>pagenumber=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
+        $collection = $matches[1];
+        $settings['pagenumber'] = $matches[2];
+        if (isset($matches[3])) {
+          $settings['pagesize'] = $matches[3];
+        }
+      }
       $collectionobj = islandora_object_load($collection);
       if ($collectionobj && in_array('islandora:collectionCModel', $collectionobj->models)) {
-        islandora_export_process_children($collectionobj, $filter, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($collectionobj, $filter, $formatconfig, $directory, $doneids, $settings);
       }
     }
   }

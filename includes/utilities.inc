@@ -23,14 +23,14 @@
  *
  */
 
-function islandora_export_process_children($obj, $filter, $formatconfig, $directory, &$doneids) {
+function islandora_export_process_children($obj, $filter, $formatconfig, $directory, &$doneids, $settings = array()) {
   if (!$obj) {
     return;
   }
   if (in_array('islandora:collectionCModel', $obj->models)) {
     module_load_include('inc', 'islandora', 'includes/utilities');
-    $pagenumber = 0;
-    $pagesize = 100;
+    $pagenumber = isset($settings['pagenumber'])?$settings['pagenumber']:0;
+    $pagesize = isset($settings['pagesize'])?$settings['pagesize']:100;
     while (TRUE) {
       list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, $pagenumber, $pagesize);
       $pagenumber++;
