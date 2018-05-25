@@ -31,6 +31,9 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     module_load_include('inc', 'islandora', 'includes/utilities');
     $pagenumber = isset($settings['pagenumber'])?$settings['pagenumber']:0;
     $pagesize = isset($settings['pagesize'])?$settings['pagesize']:100;
+    if (isset($settings['itemnumber'])) {
+      $pagenumber = (int)($settings['itemnumber']/$pagesize);
+    }
     while (TRUE) {
       list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, $pagenumber, $pagesize);
       $pagenumber++;

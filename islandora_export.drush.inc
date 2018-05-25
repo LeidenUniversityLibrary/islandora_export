@@ -134,7 +134,7 @@ function drush_islandora_export_validate() {
   if (isset($collections)) {
     $colarray = explode(',', $collections);
     foreach ($colarray as $collection) {
-      if (preg_match("/^([^>]+)>pagenumber=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
+      if (preg_match("/^([^>]+)>((?:page|item)number)=(\d+)(?:>pagesize=([1-9]\d*))?$/", $collection, $matches)) {
         $collection = $matches[1];
       }
       $collectionobj = islandora_object_load($collection);
@@ -247,11 +247,11 @@ function drush_islandora_export() {
     $colarray = explode(',', $collections);
     foreach ($colarray as $collection) {
       $settings = array();
-      if (preg_match("/^([^>]+)>pagenumber=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
+      if (preg_match("/^([^>]+)>((?:page|item)number)=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
         $collection = $matches[1];
-        $settings['pagenumber'] = $matches[2];
-        if (isset($matches[3])) {
-          $settings['pagesize'] = $matches[3];
+        $settings[$matches[2]] = $matches[3];
+        if (isset($matches[4])) {
+          $settings['pagesize'] = $matches[4];
         }
       }
       $collectionobj = islandora_object_load($collection);
