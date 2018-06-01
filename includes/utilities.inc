@@ -28,6 +28,9 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     return;
   }
   if (in_array('islandora:collectionCModel', $obj->models)) {
+    if ($filter['include_related']['collectionchild'] === FALSE) {
+      return;
+    }
     module_load_include('inc', 'islandora', 'includes/utilities');
     $pagenumber = isset($settings['pagenumber'])?$settings['pagenumber']:0;
     $pagesize = isset($settings['pagesize'])?$settings['pagesize']:100;
@@ -57,6 +60,9 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     }
   }
   if (in_array('islandora:bookCModel', $obj->models)) {
+    if ($filter['include_related']['bookpage'] === FALSE) {
+      return;
+    }
     module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
     $pages = islandora_paged_content_get_pages($obj);
     foreach ($pages as $pagepid => $pageinfo) {
@@ -73,6 +79,9 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     }
   }
   if (in_array('islandora:compoundCModel', $obj->models)) {
+    if ($filter['include_related']['compoundchild'] === FALSE) {
+      return;
+    }
     $compoundparts = islandora_compound_object_get_parts($obj->id);
     foreach ($compoundparts as $partpid) {
       if (isset($doneids[$partpid])) {

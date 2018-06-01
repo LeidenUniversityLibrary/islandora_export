@@ -39,6 +39,7 @@ function islandora_export_drush_command() {
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
+      'include_related' => 'Optionally, which related items will be exported also. By default, all related items will be exported when exporting a collection, via a ids_file or a solr_query. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
     ),
     'aliases' => array('export'),
     'examples' => array(
@@ -68,6 +69,7 @@ function drush_islandora_export_validate() {
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
   $skipidsfile = drush_get_option('skip_ids_file');
+  $includerelated = drush_get_option('include_related');
 
   // check directory option
   if (!isset($directory)) {
@@ -198,6 +200,15 @@ function drush_islandora_export_validate() {
     }
   }
 
+  // Check include_related option.
+  if (isset($includerelated)) {
+    $includerelatedarray = explode(',', $includerelated);
+    $notallowed = array_diff($includerelatedarray, array('all', 'no', 'none', 'collectionchild', 'bookpage', 'compoundchild'));
+    if (count($notallowed) > 0) {
+      return drush_set_error("include_related contains '$notallowed[0]' which is not allowed, use all, no, bookpage, compoundchild.");
+    }
+  }
+
   return TRUE;
 }
 
@@ -216,6 +227,7 @@ function drush_islandora_export() {
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
   $skipidsfile = drush_get_option('skip_ids_file');
+  $includerelated = drush_get_option('include_related');
 
   $filter = array();
   if (isset($cmodels)) {
@@ -231,6 +243,29 @@ function drush_islandora_export() {
       else {
         $filter['included_cmodels'][] = $cmodel;
       }
+    }
+  }
+  $filter['include_related'] = array('collectionchild' => FALSE, 'bookpage' => FALSE, 'compoundchild' => FALSE);
+  if (isset($includerelated)) {
+    $includerelatedarray = explode(',', $includerelated);
+    if (in_array('all', $includerelatedarray)) {
+      // this is the default
+      foreach ($filter['include_related'] as $k => $v) {
+        $filter['include_related'][$k] = TRUE;
+      }
+    }
+    elseif (in_array('no', $includerelatedarray) || in_array('none', $includerelatedarray) ) {
+      // nothing needs to change
+    }
+    else {
+      foreach ($includerelatedarray as $k) {
+        $filter['include_related'][$k] = TRUE;
+      }
+    }
+  }
+  else {
+    foreach ($filter['include_related'] as $k => $v) {
+      $filter['include_related'][$k] = TRUE;
     }
   }
 
