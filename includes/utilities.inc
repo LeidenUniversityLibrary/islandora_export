@@ -27,7 +27,8 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
   if (!$obj) {
     return;
   }
-  if (in_array('islandora:collectionCModel', $obj->models)) {
+  $objid = ($obj instanceof FedoraObject)?$obj->id:$obj['PID'];
+  if (in_array('islandora:collectionCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
     if ($filter['include_related']['collectionchild'] === FALSE) {
       return;
     }
@@ -37,63 +38,116 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     if (isset($settings['itemnumber'])) {
       $pagenumber = (int)($settings['itemnumber']/$pagesize);
     }
-    while (TRUE) {
-      list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, $pagenumber, $pagesize);
-      $pagenumber++;
-      if (count($colobjs) === 0) {
-        break;
-      }
-      foreach ($colobjs as $colobj) {
-        $cid = $colobj['object']['value'];
-        if (isset($doneids[$cid])) {
-          continue;
+    $newsettings = array_diff_key($settings, array_flip(array('pagenumber','itemnumber')));
+    if ($settings['solronly']) {
+      $solrquery = "RELS_EXT_isMemberOfCollection_uri_ms:\"info:fedora/$objid\"";
+      islandora_export_do_work_for_solr_query($solrquery, ($pagenumber * $pagesize), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+        if (isset($doneids[$solrobj['PID']])) {
+          return;
         }
-        $cobj = islandora_object_load($cid);
-        if ($cobj) {
-          if (islandora_export_filter_should_export($cobj, $filter)) {
-            islandora_export_object_export($cobj, $formatconfig, $directory);
+        if (islandora_export_filter_should_export($solrobj, $filter)) {
+          islandora_export_object_export($solrobj, $formatconfig, $directory);
+        }
+        $doneids[$solrobj['PID']] = 1;
+        islandora_export_process_children($solrobj, $filter, $formatconfig, $directory, $doneids, $newsettings);
+      });
+    }
+    else {
+      if (!($obj instanceof FedoraObject)) {
+        $obj = islandora_object_load($objid);
+      }
+      while (TRUE) {
+        list($count, $colobjs) = islandora_basic_collection_get_member_objects($obj, $pagenumber, $pagesize);
+        $pagenumber++;
+        if (count($colobjs) === 0) {
+          break;
+        }
+        foreach ($colobjs as $colobj) {
+          $cid = $colobj['object']['value'];
+          if (isset($doneids[$cid])) {
+            continue;
           }
-          $doneids[$cid] = 1;
-          islandora_export_process_children($cobj, $filter, $formatconfig, $directory, $doneids);
+          $cobj = islandora_object_load($cid);
+          if ($cobj) {
+            if (islandora_export_filter_should_export($cobj, $filter)) {
+              islandora_export_object_export($cobj, $formatconfig, $directory);
+            }
+            $doneids[$cid] = 1;
+            islandora_export_process_children($cobj, $filter, $formatconfig, $directory, $doneids, $newsettings);
+          }
         }
       }
     }
   }
-  if (in_array('islandora:bookCModel', $obj->models)) {
+  if (in_array('islandora:bookCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
     if ($filter['include_related']['bookpage'] === FALSE) {
       return;
     }
-    module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
-    $pages = islandora_paged_content_get_pages($obj);
-    foreach ($pages as $pagepid => $pageinfo) {
-      if (isset($doneids[$pagepid])) {
-        continue;
-      }
-      $pageobj = islandora_object_load($pagepid);
-      if ($pageobj) {
-        if (islandora_export_filter_should_export($pageobj, $filter)) {
-          islandora_export_object_export($pageobj, $formatconfig, $directory);
+    if ($settings['solronly']) {
+      $solrquery = format_string('@field:"@pid"', array(
+         '@field' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
+         '@pid' => "info:fedora/$objid"));
+      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+        if (isset($doneids[$solrobj['PID']])) {
+          return;
         }
-        $doneids[$pagepid] = 1;
+        if (islandora_export_filter_should_export($solrobj, $filter)) {
+          islandora_export_object_export($solrobj, $formatconfig, $directory);
+        }
+        $doneids[$solrobj['PID']] = 1;
+      });
+    }
+    else {
+      module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
+      if (!($obj instanceof FedoraObject)) {
+        $obj = islandora_object_load($objid);
+      }
+      $pages = islandora_paged_content_get_pages($obj);
+      foreach ($pages as $pagepid => $pageinfo) {
+        if (isset($doneids[$pagepid])) {
+          continue;
+        }
+        $pageobj = islandora_object_load($pagepid);
+        if ($pageobj) {
+          if (islandora_export_filter_should_export($pageobj, $filter)) {
+            islandora_export_object_export($pageobj, $formatconfig, $directory);
+          }
+          $doneids[$pagepid] = 1;
+        }
       }
     }
   }
-  if (in_array('islandora:compoundCModel', $obj->models)) {
+  if (in_array('islandora:compoundCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
     if ($filter['include_related']['compoundchild'] === FALSE) {
       return;
     }
-    $compoundparts = islandora_compound_object_get_parts($obj->id);
-    foreach ($compoundparts as $partpid) {
-      if (isset($doneids[$partpid])) {
-        continue;
-      }
-      $pobj = islandora_object_load($partpid);
-      if ($pobj) {
-        if (islandora_export_filter_should_export($pobj, $filter)) {
-          islandora_export_object_export($pobj, $formatconfig, $directory);
+    if ($settings['solronly']) {
+      $solrquery = "RELS_EXT_isConstituentOf_uri_ms:\"info:fedora/$objid\"";
+      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+        if (isset($doneids[$solrobj['PID']])) {
+          return;
         }
-        $doneids[$partpid] = 1;
-        islandora_export_process_children($pobj, $filter, $formatconfig, $directory, $doneids);
+        if (islandora_export_filter_should_export($solrobj, $filter)) {
+          islandora_export_object_export($solrobj, $formatconfig, $directory);
+        }
+        $doneids[$solrobj['PID']] = 1;
+        islandora_export_process_children($solrobj, $filter, $formatconfig, $directory, $doneids, $newsettings);
+      });
+    }
+    else {
+      $compoundparts = islandora_compound_object_get_parts($objid);
+      foreach ($compoundparts as $partpid) {
+        if (isset($doneids[$partpid])) {
+          continue;
+        }
+        $pobj = islandora_object_load($partpid);
+        if ($pobj) {
+          if (islandora_export_filter_should_export($pobj, $filter)) {
+            islandora_export_object_export($pobj, $formatconfig, $directory);
+          }
+          $doneids[$partpid] = 1;
+          islandora_export_process_children($pobj, $filter, $formatconfig, $directory, $doneids);
+        }
       }
     }
   }
@@ -101,12 +155,12 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
 
 function islandora_export_filter_should_export($object, $filter) {
   if (isset($filter['excluded_cmodels'])) {
-    if (array_intersect($filter['excluded_cmodels'], $object->models)) {
+    if (array_intersect($filter['excluded_cmodels'], ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
       return FALSE;
     }
   }
   if (isset($filter['included_cmodels'])) {
-    if (!array_intersect($filter['included_cmodels'], $object->models)) {
+    if (!array_intersect($filter['included_cmodels'], ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
       return FALSE;
     }
   }
@@ -124,14 +178,14 @@ function islandora_export_object_export($obj, array $formatconfig, $outputdirect
       $csvfilehandle = fopen($csvfile, 'w');
     }
     if ($csvfilehandle === FALSE) {
-      return drush_set_error("File $csvfile cannot be opened for writing"); 
-    } 
+      return drush_set_error("File $csvfile cannot be opened for writing");
+    }
     if (!$fileexistsalready) {
       $separator = $formatconfig['exportformat']['separator'];
-      $columns = $formatconfig['exportformat']['columns']; 
+      $columns = $formatconfig['exportformat']['columns'];
       if (fputcsv($csvfilehandle, $columns, $separator) === FALSE) {
         return drush_set_error("Failed to write to file $csvfile");
-      } 
+      }
     }
     $ok = islandora_export_object_export_csv($obj, $formatconfig, $outputdirectory, $csvfilehandle);
     fclose($csvfilehandle);
@@ -139,7 +193,7 @@ function islandora_export_object_export($obj, array $formatconfig, $outputdirect
       return FALSE;
     }
   }
-  drush_log(t("Exported object @id succesfully", array('@id' => $obj->id)), 'ok');
+  drush_log(t("Exported object @id succesfully", array('@id' => (isset($obj['PID'])?$obj['PID']:$obj->id))), 'ok');
 }
 
 function islandora_export_object_export_csv($obj, array $formatconfig, $outputdirectory, $csvfilehandle) {
@@ -151,7 +205,7 @@ function islandora_export_object_export_csv($obj, array $formatconfig, $outputdi
     unset($columnconfig);
     if (isset($formatconfig['exportformat']['columntypes'])) {
       $columntypes = $formatconfig['exportformat']['columntypes'];
-      $cmodels = $obj->models; 
+      $cmodels = ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'];
       foreach ($columntypes as $type => $cmodel) {
         if (in_array($cmodel, $cmodels)) {
           if (isset($formatconfig[$type . ':' . $columnname])) {
@@ -170,7 +224,7 @@ function islandora_export_object_export_csv($obj, array $formatconfig, $outputdi
     if ($columnconfig['type'] === 'string') {
       $value = $columnconfig['string'];
     }
-    elseif ($columnconfig['type'] === 'value') { 
+    elseif ($columnconfig['type'] === 'value') {
       $value = islandora_export_object_export_value($obj, $columnconfig);
     }
     elseif ($columnconfig['type'] === 'file') {
@@ -197,6 +251,9 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
     $value = islandora_export_object_property($obj, $source['property']);
   }
   elseif ($source['type'] === 'datastream') {
+    if (!($obj instanceof FedoraObject)) {
+      $obj = islandora_object_load($obj['PID']);
+    }
     $dsid = $source['dsid'];
     $ds = $obj[$dsid];
     if ($ds) {
@@ -267,10 +324,27 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
       }
     }
   }
+  elseif ($source['type'] === 'solr') {
+    $key = $columnconfig['solr']['key'];
+    if ($obj instanceof FedoraObject) {
+      $solrobj = islandora_export_get_solr_object($obj->id);
+      if (isset($solrobj[$key])) {
+        $value = $solrobj[$key];
+      }
+    }
+    else {
+      if (isset($obj[$key])) {
+        $value = $obj[$key];
+      }
+    }
+  }
   return $value;
 }
 
 function islandora_export_object_property($obj, $property) {
+  if (!($obj instanceof FedoraObject)) {
+    $obj = islandora_object_load($obj['PID']);
+  }
   $value = FALSE;
   switch ($property) {
     case 'creationdate':
@@ -322,7 +396,7 @@ function islandora_export_object_export_file($obj, array $formatconfig, array $c
     return drush_set_error(t('Filepath @filepath contains illegal characters', array('@filepath' => $filepath)));
   }
   if (!is_dir($outputdir . $filepath)) {
-    mkdir($outputdir . $filepath, 0777, TRUE); 
+    mkdir($outputdir . $filepath, 0777, TRUE);
   }
   $filename = islandora_export_object_export_filepath_part($obj, $formatconfig, $columnconfig['outputfilename']);
   if (!$filename) {
@@ -338,10 +412,10 @@ function islandora_export_object_export_file($obj, array $formatconfig, array $c
       if (preg_match('#[^a-zA-Z0-9._-]#', $extension)) {
 	return drush_set_error(t('Extension @extension contains illegal characters', array('@extension' => $extension)));
       }
-      $filepath .= '.' . ltrim($extension, '.'); 
+      $filepath .= '.' . ltrim($extension, '.');
     }
   }
-  
+
   $source = $columnconfig['source'];
   $fileexists = is_file($outputdir . $filepath);
   if ($source['type'] === 'property') {
@@ -351,6 +425,9 @@ function islandora_export_object_export_file($obj, array $formatconfig, array $c
     }
   }
   elseif ($source['type'] === 'datastream') {
+    if (!($obj instanceof FedoraObject)) {
+      $obj = islandora_object_load($obj['PID']);
+    }
     $dsid = $source['dsid'];
     $ds = $obj[$dsid];
     if ($ds) {
@@ -374,134 +451,13 @@ function islandora_export_object_export_filepath_part($obj, array $formatconfig,
   elseif (isset($outputconfig['like'])) {
     $columnname = $outputconfig['like'];
     if (isset($formatconfig[$columnname])) {
-      $part = islandora_export_object_export_value($obj, $formatconfig[$columnname]); 
+      $part = islandora_export_object_export_value($obj, $formatconfig[$columnname]);
       if ($part) {
 	$part = preg_replace('#[^a-zA-Z0-9._-]+#', '_', $part);
       }
     }
   }
-  return $part; 
-}
-
-function islandora_export_validate_ini_column($formatfile, array $formatconfig, $column) {
-  if (!isset($formatconfig[$column])) {
-    return drush_set_error("format_file '$formatfile' does not have a definition for column '$column'");
-  }
-  if (!isset($formatconfig[$column]['type'])) {
-    return drush_set_error("format_file '$formatfile' section [$column]: type should exist");
-  }
-  $type = $formatconfig[$column]['type'];
-  if ($type !== 'string' && $type !== 'value' && $type !== 'file') {
-    return drush_set_error("format_file '$formatfile' section [$column]: type should be 'string', 'value' or 'file'");
-  }
-  if ($type === 'string') {
-    if (!isset($formatconfig[$column]['string'])) {
-      return drush_set_error("format_file '$formatfile' section [$column]: string should exist.");
-    }
-  }
-  else {
-    if (!isset($formatconfig[$column]['source']['type'])) {
-      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should exist");
-    }
-    $sourcetype = $formatconfig[$column]['source']['type'];
-    if ($sourcetype !== 'property' && $sourcetype !== 'datastream') {
-      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should be either 'property' or 'datastream'");
-    }
-    if ($sourcetype === 'property') {
-      $property = $formatconfig[$column]['source']['property'];
-      if (!isset($property)) {
-	return drush_set_error("format_file '$formatfile' section [$column]: source[property] should exist");
-      }
-      $possibleproperties = array('checksum', 'checksumtype', 'creationdate', 'creationdatetime', 'modifydate', 'modifydatetime', 'id', 'label', 'owner', 'mimetype', 'size', 'state', 'url', 'extension', 'cmodels', 'parents');
-      if (!in_array($property, $possibleproperties)) {
-	return drush_set_error(t("format_file '$formatfile' section [$column]: source[property] should be one of these: @props",
-        array('@props' => implode(',', $possibleproperties))));
-      }
-    }
-    elseif ($sourcetype === 'datastream') {
-      $dsid = $formatconfig[$column]['source']['dsid'];
-      if (!isset($dsid)) {
-	return drush_set_error("format_file '$formatfile' section [$column]: source[dsid] should exist");
-      }
-    }
-    if ($type === 'value') {
-      if (isset($formatconfig[$column]['extract'])) {
-	$extracttype = $formatconfig[$column]['extract']['type'];
-	if (!isset($extracttype) || ($extracttype !== 'xpath' && $extracttype !== 'property')) {
-	  return drush_set_error("format_file '$formatfile' section [$column]: extract[type] should have value 'xpath' or 'property'");
-	}
-	if (!isset($formatconfig[$column]['extract'][$extracttype])) {
-	  return drush_set_error("format_file '$formatfile' section [$column]: extract[$extracttype] should exist");
-	}
-	if (isset($formatconfig[$column]['extract']['xpath'])) {
-	  $xpath = $formatconfig[$column]['extract']['xpath'];
-	  $doc = new DOMDocument;
-	  $domxpath = new DOMXPath($doc);
-	  if (isset($formatconfig[$column]['extract']['namespaces'])) {
-	    $namespaces = explode(';', $formatconfig[$column]['extract']['namespaces']);
-	    foreach ($namespaces as $namespace) {
-	      $parts = explode(' ', $namespace);
-	      if (count($parts) != 2) {
-		return drush_set_error("format_file '$formatfile' section [$column]: extract[namespaces]: wrong format '$namespace', should be 'prefix uri'. Multiple namespaces separated by semicolon ;.");
-	      }
-	      list($prefix, $uri) = $parts;
-	      if (!(filter_var($uri, FILTER_VALIDATE_URL) || (strpos($uri, 'urn:') === 0))) {
-		drupal_set_message("format_file '$formatfile' section [$column]: extract[namespaces]: not a URI in '$namespace'", 'warning');
-	      }
-	      if (@$domxpath->registerNamespace($prefix, $uri) === FALSE) {
-		return drush_set_error("format_file '$formatfile' section [$column]: extract[namespaces]: '$prefix=$uri' is not valid");
-	      }
-	    }
-	  }
-	  if (@$domxpath->query($xpath) === FALSE) {
-	    return drush_set_error("format_file '$formatfile' section [$column]: extract[xpath]: '$xpath' is not valid");
-	  }
-	}
-      } 
-    }
-    elseif ($type === 'file') {
-      if (!islandora_export_validate_ini_column_output($formatfile, $formatconfig, $column, 'directory')) {
-	return FALSE;
-      }
-      if (!islandora_export_validate_ini_column_output($formatfile, $formatconfig, $column, 'filename')) {
-	return FALSE;
-      }
-      if (!islandora_export_validate_ini_column_output($formatfile, $formatconfig, $column, 'extension')) {
-	return FALSE;
-      }
-    }
-  }
-  return TRUE;
-}
-
-function islandora_export_validate_ini_column_output($formatfile, array $formatconfig, $column, $type) {
-  if (!isset($formatconfig[$column]['output' . $type])) {
-    if ($type === 'filename') {
-      return drush_set_error("format_file '$formatfile' section [$column]: output$type should exist");
-    }
-    else {
-      return TRUE;
-    }
-  }
-  if (count($formatconfig[$column]['output' . $type]) != 1 || !(isset($formatconfig[$column]['output' . $type]['string']) || isset($formatconfig[$column]['output' . $type]['like']))) {
-    return drush_set_error("format_file '$formatfile' section [$column]: either output${type}[string] or output${type}[like] should exist");
-  }
-  if (isset($formatconfig[$column]['output' . $type]['like'])) {
-    $likecol = $formatconfig[$column]['output' . $type]['like'];
-    if ($likecol === $column) {
-      return drush_set_error("format_file '$formatfile' section [$column]: output${type}[like] refers to itself");
-    }
-    if (!isset($formatconfig[$likecol])) { 
-      return drush_set_error("format_file '$formatfile' does not have a definition for column '$likecol' referred to by section [$column] output${type}[like]");
-    } 
-    if (!(isset($formatconfig[$likecol]['type']) && $formatconfig[$likecol]['type'] === 'value')) {
-      return drush_set_error("format_file '$formatfile' section [$column]: output${type}[like] should refer to a section of type 'value'");
-    }
-    if (!islandora_export_validate_ini_column($formatfile, $formatconfig, $likecol)) {
-      return FALSE;
-    }
-  }
-  return TRUE;
+  return $part;
 }
 
 function islandora_export_ids_from_file($idsfile) {
@@ -548,4 +504,45 @@ function islandora_export_ids_from_file($idsfile) {
     $foundids[] = $id;
   }
   return $foundids;
+}
+
+function islandora_export_do_work_for_solr_query($solrquery, $start, $alter_results, $workfunction) {
+  $current = $start;
+  $numfound = $start + 1;
+  while ($current < $numfound) {
+    $qp = new IslandoraSolrQueryProcessor();
+    $qp->buildQuery($solrquery);
+    $qp->solrLimit = 50;
+    $qp->solrStart = $current;
+    $qp->solrParams['fq'] = array();
+    $qp->executeQuery($alter_results);
+    $r = $qp->islandoraSolrResult;
+    $numfound = $r['response']['numFound'];
+    $len = count($r['response']['objects']);
+    for ($i = 0; $i < $len; $i++) {
+      $solrobj = $r['response']['objects'][$i];
+      $workfunction($solrobj, $current, $numfound);
+      $current++;
+    }
+  }
+}
+
+function islandora_export_get_solr_object($pid) {
+  $pid2solrdoc = &drupal_static(__FUNCTION__, array());
+
+  if (!array_key_exists($pid, $pid2solrdoc)) {
+    $solrquery = "PID:(" . islandora_solr_lesser_escape($pid) . ")";
+    $solrdoc = FALSE;
+    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$solrdoc) {
+      $solrdoc = $solrobj['solr_doc'];
+      $solrdoc['content_models'] = $solrobj['content_models'];
+      $solrdoc['PID'] = $solrobj['PID'];
+    });
+    // only cache the last value. This is the only thing
+    // needed since we are exporting 1 object at the time.
+    array_pop($pid2solrdoc);
+    $pid2solrdoc[$pid] = $solrdoc;
+  }
+
+  return $pid2solrdoc[$pid];
 }

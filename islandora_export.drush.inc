@@ -59,6 +59,7 @@ function islandora_export_drush_command() {
  */
 function drush_islandora_export_validate() {
   module_load_include('inc', 'islandora_export', 'includes/utilities');
+  module_load_include('inc', 'islandora_export', 'includes/formatfile');
 
   $collections = drush_get_option('collection');
   $batchsets = drush_get_option('batchset');
@@ -82,54 +83,8 @@ function drush_islandora_export_validate() {
   if (!isset($formatfile)) {
     return drush_set_error("Argument format_file is mandatory!");
   }
-  if (!file_exists($formatfile)) {
-    return drush_set_error("format_file '$formatfile' does not exist, should be an absolute path");
-  }
-  $formatconfig = parse_ini_file($formatfile, TRUE);
-  if ($formatconfig === FALSE) {
-    return drush_set_error("format_file '$formatfile' is not a valid ini file");
-  }
-  $formatfilename = basename($formatfile);
-  if (!isset($formatconfig['exportformat'])) {
-    return drush_set_error("format_file '$formatfilename' does not have the mandatory section [exportformat]");
-  }
-  if (!(isset($formatconfig['exportformat']['type']) && $formatconfig['exportformat']['type'] === 'CSV')) {
-    return drush_set_error("format_file '$formatfilename' section [exportformat]: only type CSV is allowed at present");
-  }
-  if (!(isset($formatconfig['exportformat']['separator']) && strlen($formatconfig['exportformat']['separator']) == 1)) {
-    return drush_set_error("format_file '$formatfilename' section [exportformat]: separator is mandatory and should be a single character.");
-  }
-  if (!(isset($formatconfig['exportformat']['columns']) && is_array($formatconfig['exportformat']['columns']) && count($formatconfig['exportformat']['columns']) > 0)) {
-    return drush_set_error("format_file '$formatfilename' section [exportformat]: one or more columns[] are required");
-  }
-  $columns = $formatconfig['exportformat']['columns'];
-  if (isset($formatconfig['exportformat']['columntypes'])) {
-    $columntypes = $formatconfig['exportformat']['columntypes'];
-    foreach ($columns as $column) {
-      $hasdef = FALSE;
-      if (isset($formatconfig[$column])) {
-        $hasdef = TRUE;
-        if (!islandora_export_validate_ini_column($formatfilename, $formatconfig, $column)) {
-          return FALSE;
-        }
-      }
-      foreach ($columntypes as $type => $cmodel) {
-        $specificcolumn = $type . ':' . $column;
-        if (isset($formatconfig[$specificcolumn])) {
-          $hasdef = TRUE;
-	  if (!islandora_export_validate_ini_column($formatfilename, $formatconfig, $specificcolumn)) {
-	    return FALSE;
-	  }
-        }
-      }
-    }
-  }
-  else {
-    foreach ($columns as $column) {
-      if (!islandora_export_validate_ini_column($formatfilename, $formatconfig, $column)) {
-	return FALSE;
-      }
-    }
+  if (!islandora_export_validate_formatfile($formatfile)) {
+    return FALSE;
   }
 
   // Check collection option.
@@ -145,7 +100,7 @@ function drush_islandora_export_validate() {
       }
     }
   }
- 
+
   // Check batchset option.
   if (isset($batchsets)) {
     if (module_load_include('inc', 'islandora_batch', 'includes/db')) {
@@ -173,7 +128,7 @@ function drush_islandora_export_validate() {
   if (isset($solrquery)) {
     if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($daterange)) {
       return drush_set_error("solr_query cannot be combined with collection, batchset or ids_file.");
-    } 
+    }
   }
 
   // Check date_range option.
@@ -278,10 +233,24 @@ function drush_islandora_export() {
   }
 
   $formatconfig = parse_ini_file($formatfile, TRUE);
+  $settings = array('solronly' => TRUE);
+  foreach ($formatconfig as $key => $config) {
+    if ($key === 'exportformat') {
+      continue;
+    }
+    if ($config['type'] === 'file') {
+      $settings['solronly'] = FALSE;
+      break;
+    }
+    if ($config['type'] === 'value' && $config['source']['type'] !== 'solr') {
+      $settings['solronly'] = FALSE;
+      break;
+    }
+  }
+
   if (isset($collections)) {
     $colarray = explode(',', $collections);
     foreach ($colarray as $collection) {
-      $settings = array();
       if (preg_match("/^([^>]+)>((?:page|item)number)=(\d+)(?:>pagesize=(\d+))?$/", $collection, $matches)) {
         $collection = $matches[1];
         $settings[$matches[2]] = $matches[3];
@@ -303,7 +272,12 @@ function drush_islandora_export() {
         if (isset($doneids[$itemid])) {
           continue;
         }
-	$obj = islandora_object_load($itemid);
+        if ($settings['solronly']) {
+          $obj = islandora_export_get_solr_object($itemid);
+        }
+        else {
+          $obj = islandora_object_load($itemid);
+        }
 	if ($obj) {
           if (islandora_export_filter_should_export($obj, $filter)) {
 	    islandora_export_object_export($obj, $formatconfig, $directory);
@@ -319,48 +293,51 @@ function drush_islandora_export() {
       if (isset($doneids[$itemid])) {
         continue;
       }
-      $obj = islandora_object_load($itemid);
+      if ($settings['solronly']) {
+        $obj = islandora_export_get_solr_object($itemid);
+      }
+      else {
+        $obj = islandora_object_load($itemid);
+      }
       if ($obj) {
         if (islandora_export_filter_should_export($obj, $filter)) {
           islandora_export_object_export($obj, $formatconfig, $directory);
         }
         $doneids[$itemid] = 1;
-        islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids);
+        islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids, $settings);
       }
     }
   }
   if (isset($solrquery)) {
-    $current = 0;
-    $numfound = 1;
-    while ($current < $numfound) {
-      $qp = new IslandoraSolrQueryProcessor();
-      $qp->buildQuery($solrquery);
-      $qp->solrLimit = 50;
-      $qp->solrStart = $current;
-      $qp->executeQuery();
-      $r = $qp->islandoraSolrResult;
-      $numfound = $r['response']['numFound'];
+    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
       if ($current === 0) {
         drush_log(t("Found @numfound objects for query @query", array("@numfound" => $numfound, "@query" => $solrquery)), 'ok');
       }
-
-      $len = count($r['response']['objects']);
-      for ($i = 0; $i < $len; $i++) {
-        $objid = $r['response']['objects'][$i]['PID']; 
-        if (isset($doneids[$objid])) {
-          continue;
+      $objid = $solrobj['PID'];
+      if (isset($doneids[$objid])) {
+        return;
+      }
+      if ($settings['solronly']) {
+        $solrdoc = $solrobj['solr_doc'];
+        $solrdoc['content_models'] = $solrobj['content_models'];
+        $solrdoc['PID'] = $solrobj['PID'];
+        if (islandora_export_filter_should_export($solrdoc, $filter)) {
+          islandora_export_object_export($solrdoc, $formatconfig, $directory);
         }
+        $doneids[$objid] = 1;
+        islandora_export_process_children($solrdoc, $filter, $formatconfig, $directory, $doneids, $settings);
+      }
+      else {
         $obj = islandora_object_load($objid);
         if ($obj) {
           if (islandora_export_filter_should_export($obj, $filter)) {
             islandora_export_object_export($obj, $formatconfig, $directory);
           }
           $doneids[$objid] = 1;
-          islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids);
+          islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids, $settings);
         }
       }
-      $current += $len;
-    }
+    });
   }
 
   if (isset($daterange)) {
@@ -407,7 +384,12 @@ EOQ;
             if (isset($doneids[$pid])) {
               continue;
             }
-            $obj = islandora_object_load($pid);
+            if ($settings['solronly']) {
+              $obj = islandora_export_get_solr_object($pid);
+            }
+            else {
+              $obj = islandora_object_load($pid);
+            }
             if ($obj) {
               if (islandora_export_filter_should_export($obj, $filter)) {
                 islandora_export_object_export($obj, $formatconfig, $directory);
