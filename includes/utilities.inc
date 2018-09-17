@@ -337,6 +337,9 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
         $value = $obj[$key];
       }
     }
+    if (isset($value) && is_array($value)) {
+      $value = implode(",", $value);
+    }
   }
   return $value;
 }
