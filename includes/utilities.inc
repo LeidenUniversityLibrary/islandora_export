@@ -87,7 +87,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       $solrquery = format_string('@field:"@pid"', array(
          '@field' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
          '@pid' => "info:fedora/$objid"));
-      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -123,7 +123,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     }
     if ($settings['solronly']) {
       $solrquery = "RELS_EXT_isConstituentOf_uri_ms:\"info:fedora/$objid\"";
-      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -131,7 +131,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
           islandora_export_object_export($solrobj, $formatconfig, $directory);
         }
         $doneids[$solrobj['PID']] = 1;
-        islandora_export_process_children($solrobj, $filter, $formatconfig, $directory, $doneids, $newsettings);
+        islandora_export_process_children($solrobj, $filter, $formatconfig, $directory, $doneids, $settings);
       });
     }
     else {
