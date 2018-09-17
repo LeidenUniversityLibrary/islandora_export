@@ -35,6 +35,7 @@ function islandora_export_drush_command() {
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be exported.',
+      'ids_solr_key' => 'Optionally, the Solr key to use for searching the IDs of the ids_file. Can only be used with ids_file option.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
@@ -46,6 +47,7 @@ function islandora_export_drush_command() {
       'drush --user=admin islandora_export --collection=islandora:root --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --batchset=66 --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --ids_file=/path/to/idsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
+      'drush --user=admin export --ids_file=/path/to/idsfile.csv --ids_solr_key=mods_relatedItem_otherFormat_identifier_s --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islandora:bookCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
@@ -64,6 +66,7 @@ function drush_islandora_export_validate() {
   $collections = drush_get_option('collection');
   $batchsets = drush_get_option('batchset');
   $idsfile = drush_get_option('ids_file');
+  $idssolrkey = drush_get_option('ids_solr_key');
   $solrquery = drush_get_option('solr_query');
   $daterange = drush_get_option('date_range');
   $cmodels = drush_get_option('cmodel');
@@ -124,6 +127,12 @@ function drush_islandora_export_validate() {
     }
   }
 
+  if (isset($idssolrkey)) {
+    if (!isset($idsfile)) {
+      return drush_set_error("ids_solr_key can only be used with the ids_file option");
+    }
+  }
+
   // Check solr_query option.
   if (isset($solrquery)) {
     if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($daterange)) {
@@ -176,6 +185,7 @@ function drush_islandora_export() {
   $collections = drush_get_option('collection');
   $batchsets = drush_get_option('batchset');
   $idsfile = drush_get_option('ids_file');
+  $idssolrkey = drush_get_option('ids_solr_key');
   $solrquery = drush_get_option('solr_query');
   $daterange = drush_get_option('date_range');
   $cmodels = drush_get_option('cmodel');
@@ -289,22 +299,35 @@ function drush_islandora_export() {
   }
   if (isset($idsfile)) {
     $ids = islandora_export_ids_from_file($idsfile);
-    foreach ($ids as $itemid) {
-      if (isset($doneids[$itemid])) {
+    foreach ($ids as $anid) {
+      if (isset($doneids[$anid])) {
         continue;
       }
-      if ($settings['solronly']) {
-        $obj = islandora_export_get_solr_object($itemid);
+      if (isset($idssolrkey)) {
+        $customsolrquery = "$idssolrkey:($anid)";
+        islandora_export_do_work_for_solr_query($customsolrquery, 0, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+          if (islandora_export_filter_should_export($solrdoc, $filter)) {
+            islandora_export_object_export($solrdoc, $formatconfig, $directory);
+          }
+          $itemid = $solrdoc['PID'];
+          $doneids[$itemid] = 1;
+          islandora_export_process_children($solrdoc, $filter, $formatconfig, $directory, $doneids, $settings);
+        });
       }
       else {
-        $obj = islandora_object_load($itemid);
-      }
-      if ($obj) {
-        if (islandora_export_filter_should_export($obj, $filter)) {
-          islandora_export_object_export($obj, $formatconfig, $directory);
+        if ($settings['solronly']) {
+          $obj = islandora_export_get_solr_object($anid);
         }
-        $doneids[$itemid] = 1;
-        islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids, $settings);
+        else {
+          $obj = islandora_object_load($anid);
+        }
+        if ($obj) {
+          if (islandora_export_filter_should_export($obj, $filter)) {
+            islandora_export_object_export($obj, $formatconfig, $directory);
+          }
+          $doneids[$anid] = 1;
+          islandora_export_process_children($obj, $filter, $formatconfig, $directory, $doneids, $settings);
+        }
       }
     }
   }
