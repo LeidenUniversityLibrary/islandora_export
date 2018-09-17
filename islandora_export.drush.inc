@@ -309,18 +309,15 @@ function drush_islandora_export() {
     }
   }
   if (isset($solrquery)) {
-    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
       if ($current === 0) {
         drush_log(t("Found @numfound objects for query @query", array("@numfound" => $numfound, "@query" => $solrquery)), 'ok');
       }
-      $objid = $solrobj['PID'];
+      $objid = $solrdoc['PID'];
       if (isset($doneids[$objid])) {
         return;
       }
       if ($settings['solronly']) {
-        $solrdoc = $solrobj['solr_doc'];
-        $solrdoc['content_models'] = $solrobj['content_models'];
-        $solrdoc['PID'] = $solrobj['PID'];
         if (islandora_export_filter_should_export($solrdoc, $filter)) {
           islandora_export_object_export($solrdoc, $formatconfig, $directory);
         }

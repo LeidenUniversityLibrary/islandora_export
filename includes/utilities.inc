@@ -153,7 +153,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
   }
 }
 
-function islandora_export_filter_should_export($object, $filter) {
+function islandora_export_filter_should_export($obj, $filter) {
   if (isset($filter['excluded_cmodels'])) {
     if (array_intersect($filter['excluded_cmodels'], ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
       return FALSE;
@@ -524,7 +524,12 @@ function islandora_export_do_work_for_solr_query($solrquery, $start, $alter_resu
     $len = count($r['response']['objects']);
     for ($i = 0; $i < $len; $i++) {
       $solrobj = $r['response']['objects'][$i];
-      $workfunction($solrobj, $current, $numfound);
+      $solrdoc = $solrobj['solr_doc'];
+      foreach ($solrobj['content_models'] as $cmodel) {
+        $solrdoc['content_models'][] = str_replace('info:fedora/', '', $cmodel);
+      }
+      $solrdoc['PID'] = $solrobj['PID'];
+      $workfunction($solrdoc, $current, $numfound);
       $current++;
     }
   }
@@ -537,9 +542,7 @@ function islandora_export_get_solr_object($pid) {
     $solrquery = "PID:(" . islandora_solr_lesser_escape($pid) . ")";
     $solrdoc = FALSE;
     islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$solrdoc) {
-      $solrdoc = $solrobj['solr_doc'];
-      $solrdoc['content_models'] = $solrobj['content_models'];
-      $solrdoc['PID'] = $solrobj['PID'];
+      $solrdoc = $solrobj;
     });
     // only cache the last value. This is the only thing
     // needed since we are exporting 1 object at the time.
