@@ -156,9 +156,6 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
           return drush_set_error("format_file '$formatfile' section [$column]: solr[key] should exist");
         }
       }
-      else {
-        return drush_set_error("format_file '$formatfile' section [$column]: incomplete config");
-      }
     }
     elseif ($type === 'file') {
       if (!islandora_export_validate_ini_column_output($formatfile, $formatconfig, $column, 'directory')) {
