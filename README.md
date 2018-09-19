@@ -86,5 +86,5 @@ If you would like to contribute to this module, please contact the current maint
 ## License
 
 [GPLv3](LICENSE.txt)
-Copyright 2017 Leiden University Library
+Copyright 2017-2018 Leiden University Library
 
