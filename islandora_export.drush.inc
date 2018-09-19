@@ -304,7 +304,7 @@ function drush_islandora_export() {
         continue;
       }
       if (isset($idssolrkey)) {
-        $customsolrquery = "$idssolrkey:($anid)";
+        $customsolrquery = "$idssolrkey:\"$anid\"";
         islandora_export_do_work_for_solr_query($customsolrquery, 0, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
           if (islandora_export_filter_should_export($solrdoc, $filter)) {
             islandora_export_object_export($solrdoc, $formatconfig, $directory);
