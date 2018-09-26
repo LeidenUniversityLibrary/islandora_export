@@ -41,7 +41,7 @@ function islandora_export_drush_command() {
       'solr_start' => 'Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.',
       'solr_limit' => 'Optionally, the size of the batches used for Solr queries. Defaults to 50.',
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
-      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
+      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file/solr_query/date_range; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
       'include_related' => 'Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
     ),
