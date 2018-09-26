@@ -514,6 +514,15 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
   $start = isset($solroptions['start'])?$solroptions['start']:0;
   $current = $start;
   $numfound = $start + 1;
+  if (isset($solroptions['fields'])) {
+    $fl = $solroptions['fields'];
+    $cmf = variable_get('islandora_solr_content_model_field', 'RELS_EXT_hasModel_uri_ms');
+    foreach (array('PID', $cmf) as $mandatory) {
+      if (!isset($fl[$mandatory]) || !in_array($mandatory, $fl)) {
+        $fl[$mandatory] = $mandatory;
+      }
+    }
+  }
   while ($current < $numfound) {
     $qp = new IslandoraSolrQueryProcessor();
     $qp->buildQuery($solrquery);
@@ -522,6 +531,9 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
     $qp->solrParams['fq'] = array();
     if (isset($solroptions['sort'])) {
       $qp->solrParams['sort'] = $solroptions['sort'];
+    }
+    if (isset($fl)) {
+      $qp->solrParams['fl'] = implode(',', $fl);
     }
     $qp->executeQuery($alter_results);
     $r = $qp->islandoraSolrResult;

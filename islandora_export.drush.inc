@@ -43,7 +43,7 @@ function islandora_export_drush_command() {
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
-      'include_related' => 'Optionally, which related items will be exported also. By default, all related items will be exported when exporting a collection, via a ids_file or a solr_query. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
+      'include_related' => 'Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
     ),
     'aliases' => array('export'),
     'examples' => array(
@@ -195,7 +195,7 @@ function drush_islandora_export_validate() {
     $includerelatedarray = explode(',', $includerelated);
     $notallowed = array_diff($includerelatedarray, array('all', 'no', 'none', 'collectionchild', 'bookpage', 'compoundchild'));
     if (count($notallowed) > 0) {
-      return drush_set_error("include_related contains '$notallowed[0]' which is not allowed, use all, no, bookpage, compoundchild.");
+      return drush_set_error("include_related contains '$notallowed[0]' which is not allowed, use all, no/none, collectionchild, bookpage, compoundchild.");
     }
   }
 
@@ -236,27 +236,22 @@ function drush_islandora_export() {
       }
     }
   }
-  $filter['include_related'] = array('collectionchild' => FALSE, 'bookpage' => FALSE, 'compoundchild' => FALSE);
+  $filter['include_related'] = array('collectionchild' => isset($collections), 'bookpage' => FALSE, 'compoundchild' => FALSE);
   if (isset($includerelated)) {
     $includerelatedarray = explode(',', $includerelated);
     if (in_array('all', $includerelatedarray)) {
-      // this is the default
       foreach ($filter['include_related'] as $k => $v) {
         $filter['include_related'][$k] = TRUE;
       }
     }
     elseif (in_array('no', $includerelatedarray) || in_array('none', $includerelatedarray) ) {
+      // this is the default
       // nothing needs to change
     }
     else {
       foreach ($includerelatedarray as $k) {
         $filter['include_related'][$k] = TRUE;
       }
-    }
-  }
-  else {
-    foreach ($filter['include_related'] as $k => $v) {
-      $filter['include_related'][$k] = TRUE;
     }
   }
 
@@ -270,6 +265,7 @@ function drush_islandora_export() {
 
   $formatconfig = parse_ini_file($formatfile, TRUE);
   $settings = array('solronly' => TRUE);
+  $solrfields = array();
   foreach ($formatconfig as $key => $config) {
     if ($key === 'exportformat') {
       continue;
@@ -281,6 +277,10 @@ function drush_islandora_export() {
     if ($config['type'] === 'value' && $config['source']['type'] !== 'solr') {
       $settings['solronly'] = FALSE;
       break;
+    }
+    if (isset($config['solr']['key'])) {
+      $solrfield = $config['solr']['key'];
+      $solrfields[$solrfield] = $solrfield;
     }
   }
 
@@ -367,6 +367,9 @@ function drush_islandora_export() {
     }
     if (drush_get_option("solr_sort") !== NULL) {
       $solroptions["sort"] = drush_get_option("solr_sort");
+    }
+    if (count($solrfields) > 0) {
+      $solroptions["fields"] = $solrfields;
     }
     islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
       if ($current === 0) {
