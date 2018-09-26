@@ -41,7 +41,8 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     $newsettings = array_diff_key($settings, array_flip(array('pagenumber','itemnumber')));
     if ($settings['solronly']) {
       $solrquery = "RELS_EXT_isMemberOfCollection_uri_ms:\"info:fedora/$objid\"";
-      islandora_export_do_work_for_solr_query($solrquery, ($pagenumber * $pagesize), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+      $solroptions = array("start" => ($pagenumber * $pagesize));
+      islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -87,7 +88,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       $solrquery = format_string('@field:"@pid"', array(
          '@field' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
          '@pid' => "info:fedora/$objid"));
-      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
+      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -123,7 +124,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     }
     if ($settings['solronly']) {
       $solrquery = "RELS_EXT_isConstituentOf_uri_ms:\"info:fedora/$objid\"";
-      islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
+      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -509,15 +510,19 @@ function islandora_export_ids_from_file($idsfile) {
   return $foundids;
 }
 
-function islandora_export_do_work_for_solr_query($solrquery, $start, $alter_results, $workfunction) {
+function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alter_results, $workfunction) {
+  $start = isset($solroptions['start'])?$solroptions['start']:0;
   $current = $start;
   $numfound = $start + 1;
   while ($current < $numfound) {
     $qp = new IslandoraSolrQueryProcessor();
     $qp->buildQuery($solrquery);
-    $qp->solrLimit = 50;
+    $qp->solrLimit = isset($solroptions['limit'])?$solroptions['limit']:50;
     $qp->solrStart = $current;
     $qp->solrParams['fq'] = array();
+    if (isset($solroptions['sort'])) {
+      $qp->solrParams['sort'] = $solroptions['sort'];
+    }
     $qp->executeQuery($alter_results);
     $r = $qp->islandoraSolrResult;
     $numfound = $r['response']['numFound'];
@@ -541,7 +546,7 @@ function islandora_export_get_solr_object($pid) {
   if (!array_key_exists($pid, $pid2solrdoc)) {
     $solrquery = "PID:(" . islandora_solr_lesser_escape($pid) . ")";
     $solrdoc = FALSE;
-    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrobj, $current, $numfound) use (&$solrdoc) {
+    islandora_export_do_work_for_solr_query($solrquery, array('limit' => 1), FALSE, function($solrobj, $current, $numfound) use (&$solrdoc) {
       $solrdoc = $solrobj;
     });
     // only cache the last value. This is the only thing

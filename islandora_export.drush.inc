@@ -37,6 +37,9 @@ function islandora_export_drush_command() {
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be exported.',
       'ids_solr_key' => 'Optionally, the Solr key to use for searching the IDs of the ids_file. Can only be used with ids_file option.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
+      'solr_sort' => 'Optionally, a Solr sort option. Only applicable when using solr_query.',
+      'solr_start' => 'Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.',
+      'solr_limit' => 'Optionally, the size of the batches used for Solr queries. Defaults to 50.',
       'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
@@ -68,6 +71,9 @@ function drush_islandora_export_validate() {
   $idsfile = drush_get_option('ids_file');
   $idssolrkey = drush_get_option('ids_solr_key');
   $solrquery = drush_get_option('solr_query');
+  $solrsort = drush_get_option('solr_sort');
+  $solrlimit = drush_get_option('solr_limit');
+  $solrstart = drush_get_option('solr_start');
   $daterange = drush_get_option('date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
@@ -137,6 +143,26 @@ function drush_islandora_export_validate() {
   if (isset($solrquery)) {
     if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($daterange)) {
       return drush_set_error("solr_query cannot be combined with collection, batchset or ids_file.");
+    }
+  }
+
+  // Check other solr options.
+  if (isset($solrstart)) {
+    if (!isset($solrquery)) {
+      return drush_set_error("solr_start can only be used together with solr_query.");
+    }
+    if (filter_var($solrstart, FILTER_VALIDATE_INT, array('options' => array('min_range' => 0))) === FALSE) {
+      return drush_set_error("solr_start should be a whole positive number or zero.");
+    }
+  }
+  if (isset($solrlimit)) {
+    if (filter_var($solrlimit, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1))) === FALSE) {
+      return drush_set_error("solr_limit should be a whole positive number greater than zero.");
+    }
+  }
+  if (isset($solrsort)) {
+    if (!isset($solrquery)) {
+      return drush_set_error("solr_sort can only be used together with solr_query.");
     }
   }
 
@@ -305,7 +331,7 @@ function drush_islandora_export() {
       }
       if (isset($idssolrkey)) {
         $customsolrquery = "$idssolrkey:\"$anid\"";
-        islandora_export_do_work_for_solr_query($customsolrquery, 0, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+        islandora_export_do_work_for_solr_query($customsolrquery, array(), FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
           if (islandora_export_filter_should_export($solrdoc, $filter)) {
             islandora_export_object_export($solrdoc, $formatconfig, $directory);
           }
@@ -332,7 +358,17 @@ function drush_islandora_export() {
     }
   }
   if (isset($solrquery)) {
-    islandora_export_do_work_for_solr_query($solrquery, 0, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+    $solroptions = array();
+    if (drush_get_option("solr_start") !== NULL) {
+      $solroptions["start"] = drush_get_option("solr_start");
+    }
+    if (drush_get_option("solr_limit") !== NULL) {
+      $solroptions["limit"] = drush_get_option("solr_limit");
+    }
+    if (drush_get_option("solr_sort") !== NULL) {
+      $solroptions["sort"] = drush_get_option("solr_sort");
+    }
+    islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
       if ($current === 0) {
         drush_log(t("Found @numfound objects for query @query", array("@numfound" => $numfound, "@query" => $solrquery)), 'ok');
       }
