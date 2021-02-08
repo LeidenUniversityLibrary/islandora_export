@@ -156,6 +156,14 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
           return drush_set_error("format_file '$formatfile' section [$column]: solr[key] should exist");
         }
       }
+      elseif (isset($formatconfig[$column]['handle'])) {
+        if (!isset($formatconfig[$column]['handle']['type'])) {
+          return drush_set_error("format_file '$formatfile' section [$column]: handle[type] should exist");
+        }
+        if (!in_array($formatconfig[$column]['handle']['type'], array('handle', 'target'))) {
+          return drush_set_error("format_file '$formatfile' section [$column]: handle[type] should be either 'handle' or 'target'");
+        }
+      }
     }
     elseif ($type === 'file') {
       if (!islandora_export_validate_ini_column_output($formatfile, $formatconfig, $column, 'directory')) {

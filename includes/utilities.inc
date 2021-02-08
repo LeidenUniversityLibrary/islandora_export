@@ -42,7 +42,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     if ($settings['solronly']) {
       $solrquery = "RELS_EXT_isMemberOfCollection_uri_ms:\"info:fedora/$objid\"";
       $solroptions = array("start" => ($pagenumber * $pagesize));
-      islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $newsettings) {
+      islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $newsettings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -88,7 +88,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       $solrquery = format_string('@field:"@pid"', array(
          '@field' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
          '@pid' => "info:fedora/$objid"));
-      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
+      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -124,7 +124,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     }
     if ($settings['solronly']) {
       $solrquery = "RELS_EXT_isConstituentOf_uri_ms:\"info:fedora/$objid\"";
-      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $doneids, $settings) {
+      islandora_export_do_work_for_solr_query($solrquery, array(), FALSE, function($solrobj, $current, $numfound) use (&$doneids, $filter, $formatconfig, $directory, $settings) {
         if (isset($doneids[$solrobj['PID']])) {
           return;
         }
@@ -340,6 +340,23 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
     }
     if (isset($value) && is_array($value)) {
       $value = implode(",", $value);
+    }
+  }
+  elseif ($source['type'] === 'handle') {
+    module_load_include('inc', 'islandora_handle', 'includes/handle');
+    static $handler;
+    if (!isset($handler)) {
+      $handler_class = islandora_handle_retrieve_selected_handler();
+      $handler = new $handler_class();
+    }
+    if (!($obj instanceof FedoraObject)) {
+      $obj = islandora_object_load($obj['PID']);
+    }
+    if ($columnconfig['handle']['type'] === 'handle') {
+      $value = $handler->getFullHandle($obj);
+    }
+    elseif ($columnconfig['handle']['type'] === 'target') {
+      $value = $handler->readHandle($obj);
     }
   }
   return $value;
