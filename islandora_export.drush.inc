@@ -35,7 +35,7 @@ function islandora_export_drush_command() {
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be exported.',
-      'ids_solr_key' => 'Optionally, the Solr key to use for searching the IDs of the ids_file. Can only be used with ids_file option.',
+      'ids_solr_key' => 'Optionally, the Solr key or keys (seperated by comma\'s) to use for searching the IDs of the ids_file. Can only be used with ids_file option.',
       'solr_query' => 'Optionally, a Solr query to find the items to export. Cannot be combined with collection, batchset or ids_file.',
       'solr_sort' => 'Optionally, a Solr sort option. Only applicable when using solr_query.',
       'solr_start' => 'Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.',
@@ -50,7 +50,7 @@ function islandora_export_drush_command() {
       'drush --user=admin islandora_export --collection=islandora:root --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --batchset=66 --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --ids_file=/path/to/idsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
-      'drush --user=admin export --ids_file=/path/to/idsfile.csv --ids_solr_key=mods_relatedItem_otherFormat_identifier_s --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
+      'drush --user=admin export --ids_file=/path/to/idsfile.csv --ids_solr_key=mods_identifier_s,mods_relatedItem_otherFormat_identifier_s --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islandora:bookCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
@@ -330,8 +330,14 @@ function drush_islandora_export() {
         continue;
       }
       if (isset($idssolrkey)) {
-        $customsolrquery = "$idssolrkey:\"$anid\"";
-        islandora_export_do_work_for_solr_query($customsolrquery, array(), FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+        $customsolrquery = '';
+        foreach (explode(',', $idssolrkey) as $solrkey) {
+          if (strlen($customsolrquery) > 0) {
+            $customsolrquery .= ' OR ';
+          }
+          $customsolrquery .= "$solrkey:\"$anid\"";
+        }
+        islandora_export_do_work_for_solr_query($customsolrquery, array(), FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory) {
           if (islandora_export_filter_should_export($solrdoc, $filter)) {
             islandora_export_object_export($solrdoc, $formatconfig, $directory);
           }
@@ -371,7 +377,7 @@ function drush_islandora_export() {
     if (count($solrfields) > 0) {
       $solroptions["fields"] = $solrfields;
     }
-    islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory, $doneids, $settings) {
+    islandora_export_do_work_for_solr_query($solrquery, $solroptions, FALSE, function($solrdoc, $current, $numfound) use (&$doneids, $solrquery, $settings, $filter, $formatconfig, $directory) {
       if ($current === 0) {
         drush_log(t("Found @numfound objects for query @query", array("@numfound" => $numfound, "@query" => $solrquery)), 'ok');
       }

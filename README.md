@@ -13,7 +13,7 @@ Islandora Export is a module to export data from Islandora via a drush `islandor
    - `--include_related=`*all,no,collectionchild,bookpage,compoundchild* : Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.
    - `--cmodel=`*cmodel* : Optionally, filters the objects found by collection/batchset/`ids_file`/`solr_query`/`date_range`; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported
  - solr options:
-   - `--ids_solr_key=`*solr_key* : Optionally, the Solr key to use for searching the IDs of the ids_file. Can only be used with ids_file option.
+   - `--ids_solr_key=`*solr_key* : Optionally, the Solr key or keys to use for searching the IDs of the ids_file. Can only be used with ids_file option.
    - `--solr_sort=`*solr sort* : Optionally, a Solr sort option. Only applicable when using solr_query.
    - `--solr_start=`*number* : Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.
    - `--solr_limit=`*number* : Optionally, the size of the batches used for Solr queries. Defaults to 50.
