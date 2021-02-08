@@ -97,8 +97,8 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
       return drush_set_error("format_file '$formatfile' section [$column]: source[type] should exist");
     }
     $sourcetype = $formatconfig[$column]['source']['type'];
-    if ($sourcetype !== 'property' && $sourcetype !== 'datastream' && $sourcetype !== 'solr') {
-      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should be either 'property' or 'datastream' or 'solr'");
+    if ($sourcetype !== 'property' && $sourcetype !== 'datastream' && $sourcetype !== 'solr' && $sourcetype !== 'handle') {
+      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should be either 'property' or 'datastream' or 'solr' or 'handle'");
     }
     if ($sourcetype === 'property') {
       $property = $formatconfig[$column]['source']['property'];
