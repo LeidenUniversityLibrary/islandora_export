@@ -359,6 +359,11 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
       $value = $handler->readHandle($obj);
     }
   }
+  elseif ($source['type'] === 'drupal') {
+    $type = $columnconfig['drupal']['type'];
+    $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
+    $value = url("islandora/object/$pid", array('absolute' => (substr($type, 0, 5) === 'full_'), 'alias' => (substr($type, -4) === 'path')));
+  }
   return $value;
 }
 

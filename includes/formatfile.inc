@@ -97,8 +97,8 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
       return drush_set_error("format_file '$formatfile' section [$column]: source[type] should exist");
     }
     $sourcetype = $formatconfig[$column]['source']['type'];
-    if ($sourcetype !== 'property' && $sourcetype !== 'datastream' && $sourcetype !== 'solr' && $sourcetype !== 'handle') {
-      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should be either 'property' or 'datastream' or 'solr' or 'handle'");
+    if (!in_array($sourcetype, array('property', 'datastream', 'solr', 'handle', 'drupal'))) {
+      return drush_set_error("format_file '$formatfile' section [$column]: source[type] should be either 'property', 'datastream', 'solr', 'handle' or 'drupal'");
     }
     if ($sourcetype === 'property') {
       $property = $formatconfig[$column]['source']['property'];
@@ -162,6 +162,14 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
         }
         if (!in_array($formatconfig[$column]['handle']['type'], array('handle', 'target'))) {
           return drush_set_error("format_file '$formatfile' section [$column]: handle[type] should be either 'handle' or 'target'");
+        }
+      }
+      elseif (isset($formatconfig[$column]['drupal'])) {
+        if (!isset($formatconfig[$column]['drupal']['type'])) {
+          return drush_set_error("format_file '$formatfile' section [$column]: drupal[type] should exist");
+        }
+        if (!in_array($formatconfig[$column]['drupal']['type'], array('path', 'alias', 'full_path', 'full_alias'))) {
+          return drush_set_error("format_file '$formatfile' section [$column]: drupal[type] should be either 'path', 'alias', 'full_path' or 'full_alias'");
         }
       }
     }
