@@ -40,8 +40,9 @@ function islandora_export_drush_command() {
       'solr_sort' => 'Optionally, a Solr sort option. Only applicable when using solr_query.',
       'solr_start' => 'Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.',
       'solr_limit' => 'Optionally, the size of the batches used for Solr queries. Defaults to 50.',
-      'date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
-      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file/solr_query/date_range; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
+      'creation_date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
+      'modification_date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
+      'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file/solr_query/date_ranges; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
       'include_related' => 'Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
     ),
@@ -74,7 +75,8 @@ function drush_islandora_export_validate() {
   $solrsort = drush_get_option('solr_sort');
   $solrlimit = drush_get_option('solr_limit');
   $solrstart = drush_get_option('solr_start');
-  $daterange = drush_get_option('date_range');
+  $creationdaterange = drush_get_option('creation_date_range');
+  $modificationdaterange = drush_get_option('modification_date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
@@ -141,8 +143,8 @@ function drush_islandora_export_validate() {
 
   // Check solr_query option.
   if (isset($solrquery)) {
-    if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($daterange)) {
-      return drush_set_error("solr_query cannot be combined with collection, batchset or ids_file.");
+    if (isset($idsfile) || isset($batchsets) || isset($collections) || isset($creationdaterange) || isset($modificationdaterange)) {
+      return drush_set_error("solr_query cannot be combined with collection, batchset, ids_file or dateranges.");
     }
   }
 
@@ -167,7 +169,11 @@ function drush_islandora_export_validate() {
   }
 
   // Check date_range option.
-  if (isset($daterange)) {
+  if (isset($creationdaterange) || isset($modificationdaterange)) {
+    if (isset($creationdaterange) && isset($modificationdaterange)) {
+      return drush_set_error("creation_date_range and modification_date_range cannot be combined.");
+    }
+    $daterange = isset($creationdaterange) ? $creationdaterange : $modificationdaterange;
     $dates = explode('..', $daterange, 2);
     $isvalidformat = TRUE; // be positive.
     if (count($dates) !== 2) {
@@ -179,7 +185,8 @@ function drush_islandora_export_validate() {
       }
     }
     if (!$isvalidformat) {
-      return drush_set_error("date_range should contain 2 dates, separated by two points, e.g. 2017-01-01..2018-01-01.");
+      $type = isset($creationdaterange) ? 'creation' : 'modification';
+      return drush_set_error("{$type}_date_range should contain 2 dates, separated by two points, e.g. 2017-01-01..2018-01-01.");
     }
   }
 
@@ -213,7 +220,8 @@ function drush_islandora_export() {
   $idsfile = drush_get_option('ids_file');
   $idssolrkey = drush_get_option('ids_solr_key');
   $solrquery = drush_get_option('solr_query');
-  $daterange = drush_get_option('date_range');
+  $creationdaterange = drush_get_option('creation_date_range');
+  $modificationdaterange = drush_get_option('modification_date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $directory = drush_get_option('directory');
@@ -405,13 +413,14 @@ function drush_islandora_export() {
     });
   }
 
-  if (isset($daterange)) {
+  if (isset($creationdaterange) || isset($modificationdaterange)) {
+    $datetype = isset($creationdaterange) ? '<info:fedora/fedora-system:def/model#createdDate>' : '<info:fedora/fedora-system:def/view#lastModifiedDate>';
     $query = <<<EOQ
 SELECT ?object ?cd ?title
 FROM <#ri>
 WHERE {
   ?object <fedora-model:label> ?title ;
-  <info:fedora/fedora-system:def/model#createdDate> ?cd ;
+  $datetype ?cd ;
   <fedora-model:hasModel> ?model ;
   <fedora-model:state> <fedora-model:Active> .
   !filters
@@ -421,19 +430,20 @@ ORDER BY ?cd
 EOQ;
     $tuque = islandora_get_tuque_connection();
     if ($tuque) {
+      $daterange = isset($creationdaterange) ? $creationdaterange : $modificationdaterange;
       $dates = explode('..', $daterange, 2);
-      $startcreationdate = $dates[0];
-      $endcreationdate = $dates[1];
+      $startdate = $dates[0];
+      $enddate = $dates[1];
       $limit = 2500;
       while (TRUE) {
-        if (strlen($startcreationdate) > 0 && strlen($endcreationdate) > 0) {
-          $filters['cd'] = "FILTER(?cd > '{$startcreationdate}'^^xsd:dateTime && ?cd < '{$endcreationdate}'^^xsd:dateTime)";
+        if (strlen($startdate) > 0 && strlen($enddate) > 0) {
+          $filters['cd'] = "FILTER(?cd > '{$startdate}'^^xsd:dateTime && ?cd < '{$enddate}'^^xsd:dateTime)";
         }
-        elseif (strlen($startcreationdate) > 0) {
-          $filters['cd'] = "FILTER(?cd > '{$startcreationdate}'^^xsd:dateTime)";
+        elseif (strlen($startdate) > 0) {
+          $filters['cd'] = "FILTER(?cd > '{$startdate}'^^xsd:dateTime)";
         }
-        elseif (strlen($endcreationdate) > 0) {
-          $filters['cd'] = "FILTER(?cd < '{$endcreationdate}'^^xsd:dateTime)";
+        elseif (strlen($enddate) > 0) {
+          $filters['cd'] = "FILTER(?cd < '{$enddate}'^^xsd:dateTime)";
         }
         $query_string = format_string($query, array(
           '!filters' => implode(' ', $filters),
@@ -445,7 +455,7 @@ EOQ;
         else {
           foreach ($results as $result) {
             $pid = $result['object']['value'];
-            $startcreationdate = $result['cd']['value'];
+            $startdate = $result['cd']['value'];
             if (isset($doneids[$pid])) {
               continue;
             }
@@ -462,7 +472,7 @@ EOQ;
               $doneids[$pid] = 1;
             }
           }
-          drush_log(t("Exported uptil date @date.", array('@date' => $startcreationdate)), 'info');
+          drush_log(t("Exported uptil date @date.", array('@date' => $startdate)), 'info');
         }
       }
     }
