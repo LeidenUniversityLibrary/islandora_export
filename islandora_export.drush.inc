@@ -30,7 +30,8 @@ function islandora_export_drush_command() {
   $items['islandora_export'] = array(
     'description' => 'Exports the metadata and/or datastreams of items from Islandora. You can specify which items to use for the export, like items in specific collection(s), batch set(s) and/or a file with identifiers or a Solr query. Optionally you can specify the type of the source objects you need. Provide an ini file to specify the output format you want.',
     'options' => array(
-      'format_file' => 'Mandatory, the absolute filepath to an ini file containing the format of the export. See documentation for specifics.',
+      'format_file' => 'This option or the next is mandatory. The absolute filepath to an ini file containing the format of the export. See documentation for specifics.',
+      'format_string' => 'This option or the previous is mandatory. One or more solr field names, separated by comma\'s.',
       'directory' => 'Mandatory, the absolute filepath to an empty directory to export to.',
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
@@ -55,6 +56,7 @@ function islandora_export_drush_command() {
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islandora:bookCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
+      'drush --user=admin export --solr_query=catch_all_fields_mt:book --format_string=PID,fgs_label_s,mods_identifier_s --directory=/path/to/empty/directory',
     ),
   );
   return $items;
@@ -79,6 +81,7 @@ function drush_islandora_export_validate() {
   $modificationdaterange = drush_get_option('modification_date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
+  $formatstring = drush_get_option('format_string');
   $directory = drush_get_option('directory');
   $skipidsfile = drush_get_option('skip_ids_file');
   $includerelated = drush_get_option('include_related');
@@ -90,11 +93,11 @@ function drush_islandora_export_validate() {
   if (!is_dir($directory)) {
     return drush_set_error("directory '$directory' does not exist, should be an absolute path");
   }
-  // Check format_file option.
-  if (!isset($formatfile)) {
-    return drush_set_error("Argument format_file is mandatory!");
+  // Check format_file and format_string options.
+  if (!isset($formatfile) && !isset($formatstring)) {
+    return drush_set_error("Argument format_file or format_string is mandatory!");
   }
-  if (!islandora_export_validate_formatfile($formatfile)) {
+  if (isset($formatfile) && !islandora_export_validate_formatfile($formatfile)) {
     return FALSE;
   }
 
@@ -224,6 +227,7 @@ function drush_islandora_export() {
   $modificationdaterange = drush_get_option('modification_date_range');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
+  $formatstring = drush_get_option('format_string');
   $directory = drush_get_option('directory');
   $skipidsfile = drush_get_option('skip_ids_file');
   $includerelated = drush_get_option('include_related');
@@ -271,7 +275,26 @@ function drush_islandora_export() {
     }
   }
 
-  $formatconfig = parse_ini_file($formatfile, TRUE);
+  if (isset($formatfile)) {
+    $formatconfig = parse_ini_file($formatfile, TRUE);
+  }
+  else {
+    $fields = preg_split("/ *, */", $formatstring, -1, PREG_SPLIT_NO_EMPTY);
+    $formatconfig = array(
+      'exportformat' => array(
+        'type' => 'CSV',
+        'separator' => ';',
+        'columns => $fields,
+      ),
+    );
+    foreach ($fields as $field) {
+      $formatconfig[$field] = array(
+        'type' => 'value',
+        'source' => array('type' => 'solr'),
+        'solr' => array('key' => $field),
+      );
+    }
+  }
   $settings = array('solronly' => TRUE);
   $solrfields = array();
   foreach ($formatconfig as $key => $config) {
