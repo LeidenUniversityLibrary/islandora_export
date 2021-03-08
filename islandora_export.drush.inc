@@ -284,7 +284,7 @@ function drush_islandora_export() {
       'exportformat' => array(
         'type' => 'CSV',
         'separator' => ';',
-        'columns => $fields,
+        'columns' => $fields,
       ),
     );
     foreach ($fields as $field) {
