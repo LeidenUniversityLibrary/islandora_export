@@ -43,6 +43,7 @@ function islandora_export_drush_command() {
       'solr_limit' => 'Optionally, the size of the batches used for Solr queries. Defaults to 50.',
       'creation_date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
       'modification_date_range' => 'Optionally, exports the items from Islandora that have a creation date that falls within this date range. Dates should have format YYYY-MM-DD or YYYY-MM-DDThh-mm-ss.qqqZ and separated by ..',
+      'sparql_query_file' => 'Optionally, experimental function to export items based on a sparql query.',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file/solr_query/date_ranges; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
       'include_related' => 'Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
@@ -79,6 +80,7 @@ function drush_islandora_export_validate() {
   $solrstart = drush_get_option('solr_start');
   $creationdaterange = drush_get_option('creation_date_range');
   $modificationdaterange = drush_get_option('modification_date_range');
+  $sparqlqueryfile = drush_get_option('sparql_query_file');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $formatstring = drush_get_option('format_string');
@@ -193,6 +195,14 @@ function drush_islandora_export_validate() {
     }
   }
 
+  // Check sparql_query_file option.
+  if (isset($sparqlqueryfile)) {
+    if (!file_exists($sparqlqueryfile)) {
+      return drush_set_error("sparql_query_file '$sparqlqueryfile' does not exist");
+    }
+  }
+
+
   // Check skip_ids_file option.
   if (isset($skipidsfile)) {
     if (!file_exists($skipidsfile)) {
@@ -225,6 +235,7 @@ function drush_islandora_export() {
   $solrquery = drush_get_option('solr_query');
   $creationdaterange = drush_get_option('creation_date_range');
   $modificationdaterange = drush_get_option('modification_date_range');
+  $sparqlqueryfile = drush_get_option('sparql_query_file');
   $cmodels = drush_get_option('cmodel');
   $formatfile = drush_get_option('format_file');
   $formatstring = drush_get_option('format_string');
@@ -496,6 +507,33 @@ EOQ;
             }
           }
           drush_log(t("Exported uptil date @date.", array('@date' => $startdate)), 'info');
+        }
+      }
+    }
+  }
+  if (isset($sparqlqueryfile)) {
+    $query = file_get_contents($sparqlqueryfile);
+    $tuque = islandora_get_tuque_connection();
+    if ($tuque) {
+      $results = $tuque->repository->ri->sparqlQuery($query);
+      if (!empty($results)) {
+        foreach ($results as $result) {
+          $pid = $result['object']['value'];
+          if (isset($doneids[$pid])) {
+            continue;
+          }
+          if ($settings['solronly']) {
+            $obj = islandora_export_get_solr_object($pid);
+          }
+          else {
+            $obj = islandora_object_load($pid);
+          }
+          if ($obj) {
+            if (islandora_export_filter_should_export($obj, $filter)) {
+              islandora_export_object_export($obj, $formatconfig, $directory);
+            }
+            $doneids[$pid] = 1;
+          }
         }
       }
     }
