@@ -168,8 +168,8 @@ function islandora_export_validate_ini_column($formatfile, array $formatconfig, 
         if (!isset($formatconfig[$column]['drupal']['type'])) {
           return drush_set_error("format_file '$formatfile' section [$column]: drupal[type] should exist");
         }
-        if (!in_array($formatconfig[$column]['drupal']['type'], array('path', 'alias', 'full_path', 'full_alias'))) {
-          return drush_set_error("format_file '$formatfile' section [$column]: drupal[type] should be either 'path', 'alias', 'full_path' or 'full_alias'");
+        if (!in_array($formatconfig[$column]['drupal']['type'], array('path', 'alias', 'full_path', 'full_alias', 'fedora_path'))) {
+          return drush_set_error("format_file '$formatfile' section [$column]: drupal[type] should be either 'path', 'alias', 'full_path', 'full_alias' or 'fedora_path'");
         }
       }
     }

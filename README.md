@@ -17,8 +17,9 @@ Islandora Export is a module to export data from Islandora via a drush `islandor
    - `--solr_sort=`*solr sort* : Optionally, a Solr sort option. Only applicable when using solr_query.
    - `--solr_start=`*number* : Optionally, at which item to start with a Solr export. Best used together with solr_sort. Defaults to 0.
    - `--solr_limit=`*number* : Optionally, the size of the batches used for Solr queries. Defaults to 50.
- - how the export should format the output is defined by an ini file. The format of this ini file is explained below.
-   - `--format_file=`*/absolute/path/to/format/file*
+ - how the export should format the output (use one of the two below).
+   - `--format_file=`*/absolute/path/to/format/file* : The absolute filepath to an ini file containing the format of the export. See below for specifics.
+   - `--format_string=`*solr_fields* : One or more solr field names, separated by comma's. Also fedora_path is possible to retrieve the path on the Fedora filesystem to the FOXML, or fedora_path:DSID for the latest datastream or fedora_path:DSID.version for a specific version.
  - where the output should be placed:
    - `--directory=`*/absolute/path/to/empty/output/directory/* : this should be an absolute path the an existing, empty output directory. If is is not empty, files can be overwritten or appended to.
  - which ids not to include:
@@ -61,7 +62,7 @@ These sections can have the following keys:
  - `source[dsid]` : mandatory for source[type]=datastream, do not use otherwise. This defines the datastream to use for the current object.
  - `solr[key]` : mandatory for source[type]=solr, do not use otherwise. This defines the Solr key to use as the value.
  - `handle[type]` : mandatory for source[type]=handle, do not use otherwise. This can have the following values: `target` or `handle`.
- - `drupal[type]` : mandatory for source[type]=drupal, do not use otherwise. This can have the following values: `path`, `alias`, `full_path` or `full_alias`.
+ - `drupal[type]` : mandatory for source[type]=drupal, do not use otherwise. This can have the following values: `path`, `alias`, `full_path`, `full_alias` or `fedora_path`. `fedora_path` is the path of the FOXML of the item, `fedora_path:DSID` is the path of the datastream.
  - `extract[type]` : optional, only use for type=value and source[type]=datastream. This defines what type of extraction of data should be used for the datastream. This key can have the following values: `property` or `xpath`. The value of this key influences which other keys are possible.
  - `extract[property]` : mandatory for extract[type]=property, do not use otherwise. This defines which property should be extracted from the datastream. Valid values are: `checksum`, `checksumtype`, `controlgroup` (Inline (X)ML, (M)anaged Content, (R)edirect, or (E)xternal Referenced), `creationdate`, `creationdatetime`, `id`, `label`, `mimetype`, `size`, `state` (A/I/D), `url` (only for controlgroup R or E), `extension`.
  - `extract[xpath]` : mandatory for extract[type]=xpath, do not use otherwise. Only use with datastreams in XML format, like 'MODS' or 'DC'. The value should be a valid XPath to a single value inside the datastream. Use `extract[namespaces]` to supply the namespaces for the xpath.

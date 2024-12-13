@@ -31,7 +31,7 @@ function islandora_export_drush_command() {
     'description' => 'Exports the metadata and/or datastreams of items from Islandora. You can specify which items to use for the export, like items in specific collection(s), batch set(s) and/or a file with identifiers or a Solr query. Optionally you can specify the type of the source objects you need. Provide an ini file to specify the output format you want.',
     'options' => array(
       'format_file' => 'This option or the next is mandatory. The absolute filepath to an ini file containing the format of the export. See documentation for specifics.',
-      'format_string' => 'This option or the previous is mandatory. One or more solr field names, separated by comma\'s.',
+      'format_string' => 'This option or the previous is mandatory. One or more solr field names, separated by comma\'s. Also fedora_path is possible to retrieve the path on the Fedora filesystem to the FOXML, or fedora_path:DSID for the latest datastream or fedora_path:DSID.version for a specific version.',
       'directory' => 'Mandatory, the absolute filepath to an empty directory to export to.',
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
@@ -58,6 +58,7 @@ function islandora_export_drush_command() {
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory',
       'drush --user=admin export --solr_query=catch_all_fields_mt:book --format_string=PID,fgs_label_s,mods_identifier_s --directory=/path/to/empty/directory',
+      'drush --user=admin export --solr_query=catch_all_fields_mt:journal --format_string=PID,fgs_label_s,mods_identifier_s,fedora_path,fedora_path:OBJ --directory=/path/to/empty/directory',
     ),
   );
   return $items;
@@ -299,11 +300,21 @@ function drush_islandora_export() {
       ),
     );
     foreach ($fields as $field) {
-      $formatconfig[$field] = array(
-        'type' => 'value',
-        'source' => array('type' => 'solr'),
-        'solr' => array('key' => $field),
-      );
+      if (substr($field, 0, 11) === 'fedora_path') {
+        $dsidversion = substr($field, 12);
+        $formatconfig[$field] = array(
+          'type' => 'value',
+          'source' => array('type' => 'drupal'),
+          'drupal' => array('type' => 'fedora_path', 'argument' => $dsidversion),
+        );
+      }
+      else {
+        $formatconfig[$field] = array(
+          'type' => 'value',
+          'source' => array('type' => 'solr'),
+          'solr' => array('key' => $field),
+        );
+      }
     }
   }
   $settings = array('solronly' => TRUE);
@@ -316,7 +327,7 @@ function drush_islandora_export() {
       $settings['solronly'] = FALSE;
       break;
     }
-    if ($config['type'] === 'value' && $config['source']['type'] !== 'solr') {
+    if ($config['type'] === 'value' && ($config['source']['type'] !== 'solr' && $config['source']['type'] !== 'drupal')) {
       $settings['solronly'] = FALSE;
       break;
     }

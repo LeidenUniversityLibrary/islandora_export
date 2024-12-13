@@ -362,7 +362,17 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
   elseif ($source['type'] === 'drupal') {
     $type = $columnconfig['drupal']['type'];
     $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
-    $value = url("islandora/object/$pid", array('absolute' => (substr($type, 0, 5) === 'full_'), 'alias' => (substr($type, -4) === 'path')));
+    if ($type === 'fedora_path') {
+      $arg = isset($columnconfig['drupal']['argument']) ? $columnconfig['drupal']['argument'] : '';
+      list($dsid, $version) = explode('.', $arg);
+      $dsf = variable_get('islandora_solr_datastream_id_field', 'fedora_datastreams_ms');
+      if (empty($dsid) || (($obj instanceof FedoraObject) && isset($obj[$dsid])) || (!($obj instanceof FedoraObject) && isset($obj[$dsf]) && array_search($dsid, $obj[$dsf]) !== FALSE)) {
+        $value = islandora_export_get_fedora_path($pid, $dsid, $version);
+      }
+    }
+    else {
+      $value = url("islandora/object/$pid", array('absolute' => (substr($type, 0, 5) === 'full_'), 'alias' => (substr($type, -4) === 'path')));
+    }
   }
   return $value;
 }
@@ -539,7 +549,8 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
   if (isset($solroptions['fields'])) {
     $fl = $solroptions['fields'];
     $cmf = variable_get('islandora_solr_content_model_field', 'RELS_EXT_hasModel_uri_ms');
-    foreach (array('PID', $cmf) as $mandatory) {
+    $dsf = variable_get('islandora_solr_datastream_id_field', 'fedora_datastreams_ms');
+    foreach (array('PID', $cmf, $dsf) as $mandatory) {
       if (!isset($fl[$mandatory]) || !in_array($mandatory, $fl)) {
         $fl[$mandatory] = $mandatory;
       }
@@ -590,4 +601,21 @@ function islandora_export_get_solr_object($pid) {
   }
 
   return $pid2solrdoc[$pid];
+}
+
+function islandora_export_get_fedora_path($pid, $dsid = NULL, $version = NULL) {
+  if ($dsid) {
+    if (!$version) {
+      $version = 0;
+    }
+    $file = "info:fedora/$pid/$dsid/$dsid.$version";
+    $dir = 'datastreamStore';
+  }
+  else {
+    $file = "info:fedora/$pid";
+    $dir = 'objectStore';
+  }
+  $md5 = md5($file);
+  $subdir = substr($md5, 0, 2);
+  return $dir . '/' . $subdir . '/' . urlencode($file);
 }
