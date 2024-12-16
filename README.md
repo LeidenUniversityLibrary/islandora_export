@@ -20,12 +20,13 @@ Islandora Export is a module to export data from Islandora via a drush `islandor
  - how the export should format the output (use one of the two below).
    - `--format_file=`*/absolute/path/to/format/file* : The absolute filepath to an ini file containing the format of the export. See below for specifics.
    - `--format_string=`*solr_fields* : One or more solr field names, separated by comma's. Also fedora_path is possible to retrieve the path on the Fedora filesystem to the FOXML, or fedora_path:DSID for the latest datastream or fedora_path:DSID.version for a specific version.
- - where the output should be placed:
+ - where the output should be placed (use one of the two below):
    - `--directory=`*/absolute/path/to/empty/output/directory/* : this should be an absolute path the an existing, empty output directory. If is is not empty, files can be overwritten or appended to.
+   - `--file=`*/absolute/path/to/a/file.csv* : the absolute filepath to a file to export to. Only use in combination with format_string. Can be - to write directly to STDOUT.
  - which ids not to include:
    - `--skip_ids_file=`*path/to/idsfile.csv* : Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.
 
-For now, this module can only output data in CSV format. This is done to a file named `export.csv` in the given output directory. The columns and the content of the columns can be defined in the ini file, as explained below.
+For now, this module can only output data in CSV format. This is done to a file named `export.csv` in the given output directory or to the file specified by the file option. The columns and the content of the columns can be defined in the ini file, as explained below.
 
 ## drush examples
 
@@ -40,6 +41,7 @@ drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=islando
 drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --format_file=/path/to/format.ini --directory=/path/to/empty/directory
 drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --skip_ids_file=/path/to/skipidsfile.csv --format_file=/path/to/format.ini --directory=/path/to/empty/directory
 drush --user=admin export --solr_query=catch_all_fields_mt:book --cmodel=-islandora:pageCModel --solr_start=1000 --solr_limit=100 --solr_sort="timestamp desc" --format_file=/path/to/format.ini --directory=/path/to/empty/directory
+drush --quiet --user=admin export --solr_query='RELS_EXT_hasModel_uri_ms:"info:fedora/islandora:sp_large_image_cmodel"' --format_string='PID,fedora_path,fedora_path:OBJ' --file=-
 ```
 
 ## format ini file

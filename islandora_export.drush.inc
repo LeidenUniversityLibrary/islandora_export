@@ -32,7 +32,8 @@ function islandora_export_drush_command() {
     'options' => array(
       'format_file' => 'This option or the next is mandatory. The absolute filepath to an ini file containing the format of the export. See documentation for specifics.',
       'format_string' => 'This option or the previous is mandatory. One or more solr field names, separated by comma\'s. Also fedora_path is possible to retrieve the path on the Fedora filesystem to the FOXML, or fedora_path:DSID for the latest datastream or fedora_path:DSID.version for a specific version.',
-      'directory' => 'Mandatory, the absolute filepath to an empty directory to export to.',
+      'directory' => 'This option or the next is mandatory, the absolute filepath to an empty directory to export to.',
+      'file' => 'This option or the previous is mandatory, the absolute filepath to a file to export to. Only use in combination with format_string. Can be - to write directly to STDOUT.',
       'collection' => 'Optionally, one or more collection IDs, separated by comma\'s.',
       'batchset' => 'Optionally, one or more batchset IDs, separated by comma\'s.',
       'ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be exported.',
@@ -86,15 +87,22 @@ function drush_islandora_export_validate() {
   $formatfile = drush_get_option('format_file');
   $formatstring = drush_get_option('format_string');
   $directory = drush_get_option('directory');
+  $file = drush_get_option('file');
   $skipidsfile = drush_get_option('skip_ids_file');
   $includerelated = drush_get_option('include_related');
 
-  // check directory option
-  if (!isset($directory)) {
-    return drush_set_error("Argument directory is mandatory!");
+  // check directory and file options
+  if (!isset($directory) && !isset($file)) {
+    return drush_set_error("Argument directory or file is mandatory!");
   }
-  if (!is_dir($directory)) {
-    return drush_set_error("directory '$directory' does not exist, should be an absolute path");
+  if (isset($directory) && isset($file)) {
+    return drush_set_error("Either directory or file is possible, not both!");
+  }
+  if (isset($directory) && !is_dir($directory)) {
+    return drush_set_error("Directory '$directory' does not exist, should be an absolute path");
+  }
+  if (isset($file) && ($file !== '-' && !is_dir(dirname($file)))) {
+    return drush_set_error("File '$file' is in a directory that does not exist");
   }
   // Check format_file and format_string options.
   if (!isset($formatfile) && !isset($formatstring)) {
@@ -241,6 +249,7 @@ function drush_islandora_export() {
   $formatfile = drush_get_option('format_file');
   $formatstring = drush_get_option('format_string');
   $directory = drush_get_option('directory');
+  $file = drush_get_option('file');
   $skipidsfile = drush_get_option('skip_ids_file');
   $includerelated = drush_get_option('include_related');
 
@@ -316,6 +325,15 @@ function drush_islandora_export() {
         );
       }
     }
+  }
+  if (empty($directory) && $file) {
+    if ($file === '-') {
+      $directory = '/tmp';
+    }
+    else {
+      $directory = dirname($file);
+    }
+    $formatconfig['exportformat']['file'] = $file;
   }
   $settings = array('solronly' => TRUE);
   $solrfields = array();

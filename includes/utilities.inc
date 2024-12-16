@@ -28,7 +28,8 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
     return;
   }
   $objid = ($obj instanceof FedoraObject)?$obj->id:$obj['PID'];
-  if (in_array('islandora:collectionCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
+  $cmodels = ($obj instanceof FedoraObject)?$obj->models:(isset($obj['content_models'])?$obj['content_models']:array());
+  if (in_array('islandora:collectionCModel', $cmodels)) {
     if ($filter['include_related']['collectionchild'] === FALSE) {
       return;
     }
@@ -80,7 +81,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       }
     }
   }
-  if (in_array('islandora:bookCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
+  if (in_array('islandora:bookCModel', $cmodels)) {
     if ($filter['include_related']['bookpage'] === FALSE) {
       return;
     }
@@ -118,7 +119,7 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
       }
     }
   }
-  if (in_array('islandora:compoundCModel', ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
+  if (in_array('islandora:compoundCModel', $cmodels)) {
     if ($filter['include_related']['compoundchild'] === FALSE) {
       return;
     }
@@ -155,13 +156,14 @@ function islandora_export_process_children($obj, $filter, $formatconfig, $direct
 }
 
 function islandora_export_filter_should_export($obj, $filter) {
+  $cmodels = ($obj instanceof FedoraObject)?$obj->models:(isset($obj['content_models'])?$obj['content_models']:array());
   if (isset($filter['excluded_cmodels'])) {
-    if (array_intersect($filter['excluded_cmodels'], ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
+    if (array_intersect($filter['excluded_cmodels'], $cmodels)) {
       return FALSE;
     }
   }
   if (isset($filter['included_cmodels'])) {
-    if (!array_intersect($filter['included_cmodels'], ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'])) {
+    if (!array_intersect($filter['included_cmodels'], $cmodels)) {
       return FALSE;
     }
   }
@@ -170,22 +172,37 @@ function islandora_export_filter_should_export($obj, $filter) {
 
 function islandora_export_object_export($obj, array $formatconfig, $outputdirectory) {
   if ($formatconfig['exportformat']['type'] === 'CSV') {
-    $csvfile = rtrim($outputdirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export.csv';
-    $fileexistsalready = is_file($csvfile);
-    if ($fileexistsalready) {
-      $csvfilehandle = fopen($csvfile, 'a');
+    if (isset($formatconfig['exportformat']['file'])) {
+      $csvfile = $formatconfig['exportformat']['file'];
     }
     else {
-      $csvfilehandle = fopen($csvfile, 'w');
+      $csvfile = rtrim($outputdirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export.csv';
     }
-    if ($csvfilehandle === FALSE) {
-      return drush_set_error("File $csvfile cannot be opened for writing");
+    if ($csvfile === '-') {
+      $csvfilehandle = fopen("php://stdout", "w");
+      static $header_printed = FALSE;
+      if (!$header_printed) {
+        if (!islandora_export_print_header($csvfilehandle, $csvfile, $formatconfig)) {
+          return FALSE;
+        }
+        $header_printed = TRUE;
+      }
     }
-    if (!$fileexistsalready) {
-      $separator = $formatconfig['exportformat']['separator'];
-      $columns = $formatconfig['exportformat']['columns'];
-      if (fputcsv($csvfilehandle, $columns, $separator) === FALSE) {
-        return drush_set_error("Failed to write to file $csvfile");
+    else {
+      $fileexistsalready = is_file($csvfile);
+      if ($fileexistsalready) {
+        $csvfilehandle = fopen($csvfile, 'a');
+      }
+      else {
+        $csvfilehandle = fopen($csvfile, 'w');
+      }
+      if ($csvfilehandle === FALSE) {
+        return drush_set_error("File $csvfile cannot be opened for writing");
+      }
+      if (!$fileexistsalready) {
+        if (!islandora_export_print_header($csvfilehandle, $csvfile, $formatconfig)) {
+          return FALSE;
+        }
       }
     }
     $ok = islandora_export_object_export_csv($obj, $formatconfig, $outputdirectory, $csvfilehandle);
@@ -197,6 +214,15 @@ function islandora_export_object_export($obj, array $formatconfig, $outputdirect
   drush_log(t("Exported object @id succesfully", array('@id' => (isset($obj['PID'])?$obj['PID']:$obj->id))), 'ok');
 }
 
+function islandora_export_print_header($csvfilehandle, $csvfile, $formatconfig) {
+  $separator = $formatconfig['exportformat']['separator'];
+  $columns = $formatconfig['exportformat']['columns'];
+  if (fputcsv($csvfilehandle, $columns, $separator) === FALSE) {
+    return drush_set_error("Failed to write to file $csvfile");
+  }
+  return TRUE;
+}
+
 function islandora_export_object_export_csv($obj, array $formatconfig, $outputdirectory, $csvfilehandle) {
   $separator = $formatconfig['exportformat']['separator'];
   $columnnames = $formatconfig['exportformat']['columns'];
@@ -206,7 +232,7 @@ function islandora_export_object_export_csv($obj, array $formatconfig, $outputdi
     unset($columnconfig);
     if (isset($formatconfig['exportformat']['columntypes'])) {
       $columntypes = $formatconfig['exportformat']['columntypes'];
-      $cmodels = ($obj instanceof FedoraObject)?$obj->models:$obj['content_models'];
+      $cmodels = ($obj instanceof FedoraObject)?$obj->models:(isset($obj['content_models'])?$obj['content_models']:array());
       foreach ($columntypes as $type => $cmodel) {
         if (in_array($cmodel, $cmodels)) {
           if (isset($formatconfig[$type . ':' . $columnname])) {
@@ -546,9 +572,9 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
   $start = isset($solroptions['start'])?$solroptions['start']:0;
   $current = $start;
   $numfound = $start + 1;
+  $cmf = variable_get('islandora_solr_content_model_field', 'RELS_EXT_hasModel_uri_ms');
   if (isset($solroptions['fields'])) {
     $fl = $solroptions['fields'];
-    $cmf = variable_get('islandora_solr_content_model_field', 'RELS_EXT_hasModel_uri_ms');
     $dsf = variable_get('islandora_solr_datastream_id_field', 'fedora_datastreams_ms');
     foreach (array('PID', $cmf, $dsf) as $mandatory) {
       if (!isset($fl[$mandatory]) || !in_array($mandatory, $fl)) {
@@ -575,7 +601,8 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
     for ($i = 0; $i < $len; $i++) {
       $solrobj = $r['response']['objects'][$i];
       $solrdoc = $solrobj['solr_doc'];
-      foreach ($solrobj['content_models'] as $cmodel) {
+      $cmodels = isset($solrobj[$cmf])?$solrobj[$cmf]:array();
+      foreach ($cmodels as $cmodel) {
         $solrdoc['content_models'][] = str_replace('info:fedora/', '', $cmodel);
       }
       $solrdoc['PID'] = $solrobj['PID'];
