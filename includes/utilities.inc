@@ -390,7 +390,7 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
     $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
     if ($type === 'fedora_path') {
       $arg = isset($columnconfig['drupal']['argument']) ? $columnconfig['drupal']['argument'] : '';
-      list($dsid, $version) = explode('.', $arg);
+      list($dsid, $version) = array_pad(explode('.', $arg), 2, NULL);
       $dsf = variable_get('islandora_solr_datastream_id_field', 'fedora_datastreams_ms');
       if (empty($dsid) || (($obj instanceof FedoraObject) && isset($obj[$dsid])) || (!($obj instanceof FedoraObject) && isset($obj[$dsf]) && array_search($dsid, $obj[$dsf]) !== FALSE)) {
         $value = islandora_export_get_fedora_path($pid, $dsid, $version);
