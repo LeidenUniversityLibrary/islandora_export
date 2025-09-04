@@ -367,6 +367,13 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
     if (isset($value) && is_array($value)) {
       $value = implode(",", $value);
     }
+    if (isset($columnconfig['solr']['apply']) && !empty($value)) {
+      $apply = $columnconfig['solr']['apply'];
+      if ($apply === 'extension') {
+        module_load_include('inc', 'islandora', 'includes/mimetype.utils');
+        $value = islandora_get_extension_for_mimetype($value);
+      }
+    }
     // If asked for the sequence and is constituent of (compound), then collect order of all parts and cache it.
     if (empty($value) && $key === "RELS_EXT_isSequenceNumber_literal_ms") {
       static $pid2seq = array();
