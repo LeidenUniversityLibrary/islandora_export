@@ -367,6 +367,27 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
     if (isset($value) && is_array($value)) {
       $value = implode(",", $value);
     }
+    // If asked for the sequence and is constituent of (compound), then collect order of all parts and cache it.
+    if (empty($value) && $key === "RELS_EXT_isSequenceNumber_literal_ms") {
+      static $pid2seq = array();
+      $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
+      if (!isset($pid2seq[$pid])) {
+        if ((isset($obj["RELS_EXT_isConstituentOf_uri_ms"]) || isset($solrobj["RELS_EXT_isConstituentOf_uri_ms"]))) {
+          $parent_id = $obj["RELS_EXT_isConstituentOf_uri_ms"] ?? $solrobj["RELS_EXT_isConstituentOf_uri_ms"];
+          $parent_id = is_array($parent_id) ? end($parent_id) : $parent_id;
+          $parent_id = str_replace('info:fedora/', '', $parent_id);
+          if (!empty($parent_id)) {
+            $compoundparts = islandora_compound_object_get_parts($parent_id);
+            foreach ($compoundparts as $index => $partpid) {
+              $pid2seq[$partpid] = $index + 1;
+            }
+          }
+        }
+      }
+      if (isset($pid2seq[$pid])) {
+        $value = $pid2seq[$pid];
+      }
+    }
   }
   elseif ($source['type'] === 'handle') {
     module_load_include('inc', 'islandora_handle', 'includes/handle');
