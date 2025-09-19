@@ -375,8 +375,8 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
       }
     }
     // If asked for the sequence and is constituent of (compound), then collect order of all parts and cache it.
+    static $pid2seq = array();
     if (empty($value) && $key === "RELS_EXT_isSequenceNumber_literal_ms") {
-      static $pid2seq = array();
       $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
       if (!isset($pid2seq[$pid])) {
         if ((isset($obj["RELS_EXT_isConstituentOf_uri_ms"]) || isset($solrobj["RELS_EXT_isConstituentOf_uri_ms"]))) {
@@ -393,6 +393,16 @@ function islandora_export_object_export_value($obj, array $columnconfig) {
       }
       if (isset($pid2seq[$pid])) {
         $value = $pid2seq[$pid];
+      }
+    }
+    if ($key === 'RELS_EXT_isCompoundType_literal_ms' && $value === 'hierarchical') {
+      $pid = ($obj instanceof FedoraObject) ? $obj->id : $obj['PID'];
+      $compoundparts = islandora_compound_object_get_parts($pid);
+      module_load_include('inc', 'islandora_compound_object', 'includes/compound_types');
+      $full_parent = islandora_object_load($pid);
+      foreach ($compoundparts as $index => $partpid) {
+        $full_child = islandora_object_load($partpid);
+        $pid2seq[$partpid] = islandora_compound_object_get_relation($full_child, "isHierarchicalLevelOf", $full_parent);
       }
     }
   }
