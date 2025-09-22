@@ -639,7 +639,7 @@ function islandora_export_do_work_for_solr_query($solrquery, $solroptions, $alte
     for ($i = 0; $i < $len; $i++) {
       $solrobj = $r['response']['objects'][$i];
       $solrdoc = $solrobj['solr_doc'];
-      $cmodels = isset($solrobj[$cmf])?$solrobj[$cmf]:array();
+      $cmodels = isset($solrdoc[$cmf])?$solrdoc[$cmf]:array();
       foreach ($cmodels as $cmodel) {
         $solrdoc['content_models'][] = str_replace('info:fedora/', '', $cmodel);
       }
