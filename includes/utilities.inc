@@ -670,8 +670,9 @@ function islandora_export_get_solr_object($pid) {
 
 function islandora_export_get_fedora_path($pid, $dsid = NULL, $version = NULL) {
   if ($dsid) {
-    if (!$version) {
-      $version = 0;
+    if ($version === NULL) {
+      $datastream = islandora_datastream_load($dsid, $pid);
+      $version = count($datastream) - 1;
     }
     $file = "info:fedora/$pid/$dsid/$dsid.$version";
     $dir = 'datastreamStore';
