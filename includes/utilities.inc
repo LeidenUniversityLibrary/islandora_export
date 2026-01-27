@@ -683,5 +683,31 @@ function islandora_export_get_fedora_path($pid, $dsid = NULL, $version = NULL) {
   }
   $md5 = md5($file);
   $subdir = substr($md5, 0, 2);
-  return $dir . '/' . $subdir . '/' . urlencode($file);
+  return $dir . '/' . $subdir . '/' . fedora_encode($file);
+}
+
+function fedora_encode($input) {
+    $output = '';
+    $length = strlen($input);
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $input[$i];
+        $ord  = ord($char);
+
+        // A-Z, a-z, 0-9 and . stay the same:
+        if (
+            ($ord >= 48 && $ord <= 57)  || // 0-9
+            ($ord >= 65 && $ord <= 90)  || // A-Z
+            ($ord >= 97 && $ord <= 122) || // a-z
+            $ord === 46                    // .
+        ) {
+            $output .= $char;
+        }
+        else {
+            // But everything else will be encoded with %XX
+            $output .= sprintf("%%%02X", $ord);
+        }
+    }
+
+    return $output;
 }
