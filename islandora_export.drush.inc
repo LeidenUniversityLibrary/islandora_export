@@ -47,6 +47,7 @@ function islandora_export_drush_command() {
       'sparql_query_file' => 'Optionally, experimental function to export items based on a sparql query.',
       'cmodel' => 'Optionally, filters the objects found by collection/batchset/ids_file/solr_query/date_ranges; only export objects with the given content model(s). If the content models start with - the objects with these content models will not be exported.',
       'skip_ids_file' => 'Optionally, the absolute filepath to a file containing a list of Islandora identifiers that will be skipped, so do not export these items. You can use an existing export file if the first column contains the item id.',
+      'skip_ids_files' => 'Optionally, same as skip_ids_file, but can handle multiple files by using brace expansion. Usage: --skip_ids_file=\'/dir/subdir{3,5,12}/ids_file.csv\'.',
       'include_related' => 'Optionally, which related items will be exported also. By default, all directly related items will be exported when exporting a collection, but no related items will be exported otherwise. Allowed values are: all, no, collectionchild, bookpage, compoundchild.',
     ),
     'aliases' => array('export'),
@@ -89,6 +90,7 @@ function drush_islandora_export_validate() {
   $directory = drush_get_option('directory');
   $file = drush_get_option('file');
   $skipidsfile = drush_get_option('skip_ids_file');
+  $skipidsfiles = drush_get_option('skip_ids_files');
   $includerelated = drush_get_option('include_related');
 
   // check directory and file options
@@ -219,6 +221,14 @@ function drush_islandora_export_validate() {
     }
   }
 
+  // Check skip_ids_files option.
+  if (isset($skipidsfiles)) {
+    $skipfiles = glob($skipidsfiles, GLOB_BRACE | GLOB_ERR);
+    if (empty($skipfiles)) {
+      return drush_set_error("No files found for option --skip-ids-files='{$skipidsfiles}'");
+    }
+  }
+
   // Check include_related option.
   if (isset($includerelated)) {
     $includerelatedarray = explode(',', $includerelated);
@@ -251,6 +261,7 @@ function drush_islandora_export() {
   $directory = drush_get_option('directory');
   $file = drush_get_option('file');
   $skipidsfile = drush_get_option('skip_ids_file');
+  $skipidsfiles = drush_get_option('skip_ids_files');
   $includerelated = drush_get_option('include_related');
 
   $filter = array();
@@ -293,6 +304,16 @@ function drush_islandora_export() {
     $skipids = islandora_export_ids_from_file($skipidsfile);
     foreach ($skipids as $skipitemid) {
       $doneids[$skipitemid] = 1;
+    }
+  }
+  if (isset($skipidsfiles)) {
+    $skipfiles = glob($skipidsfiles, GLOB_BRACE | GLOB_ERR);
+    foreach ($skipfiles as $skipfile) {
+      drush_log("Skipping ids from file: {$skipfile}.", "ok");
+      $skipids = islandora_export_ids_from_file($skipfile);
+      foreach ($skipids as $skipitemid) {
+        $doneids[$skipitemid] = 1;
+      }
     }
   }
 
@@ -568,4 +589,3 @@ EOQ;
     }
   }
 }
-
